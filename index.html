@@ -199,11 +199,25 @@ select.gen{font-size:12px;padding:2px 4px;max-width:120px}
  <div id="cloudPanel" class="panel" hidden style="padding:12px 14px;display:flex;flex-direction:column;gap:8px">
     <div class="row" style="justify-content:space-between"><b>Lista en la nube (GitHub)</b><button class="btn sm" id="cloudClose">Cerrar</button></div>
     <div class="note">La Lista de mezcla se guarda en un archivo privado (Gist) de tu cuenta de GitHub. Así es la misma en todas tus PC y se va completando desde cualquiera.</div>
-    <div class="row">
+    <div class="row" id="cloudLoginRow">
+      <span class="lbl" style="min-width:150px">Entrar con mi contraseña</span>
+      <input class="inp" id="cloudPass" type="password" placeholder="Tu contraseña del mezclador" autocomplete="current-password">
+      <button class="btn primary" id="cloudPassGo">Entrar</button>
+    </div>
+    <div class="row" id="cloudTokenRow">
+      <span class="lbl" style="min-width:150px">o con la clave de GitHub</span>
       <input class="inp" id="cloudToken" type="password" placeholder="Pega aquí tu clave de GitHub (empieza por ghp_ o github_pat_)" autocomplete="off">
       <button class="btn" id="cloudSave">Conectar</button>
+    </div>
+    <div class="row" id="cloudSetRow">
+      <span class="lbl" style="min-width:150px">Contraseña para otras PC</span>
+      <input class="inp" id="cloudNew1" type="password" placeholder="Nueva contraseña (mínimo 10 caracteres)" autocomplete="new-password" style="max-width:260px">
+      <input class="inp" id="cloudNew2" type="password" placeholder="Repítela" autocomplete="new-password" style="max-width:200px">
+      <button class="btn" id="cloudSetPass">Guardar contraseña</button>
+    </div>
+    <div class="row">
       <button class="btn" id="cloudNow">Sincronizar ahora</button>
-      <button class="btn sm" id="cloudForget" title="Quita la clave de este navegador">Desconectar esta PC</button>
+      <button class="btn sm" id="cloudForget" title="Quita la conexión de este navegador">Desconectar esta PC</button>
     </div>
     <div class="note" id="cloudInfo">—</div>
   </div>
@@ -1656,11 +1670,58 @@ function cloudUI(){
   const b=$('#cloudBtn'); if(!b)return;
   b.textContent=!cloud.token?'Nube: sin configurar':cloud.busy?'Nube: sincronizando…':cloud.err?'Nube: error':'Nube: al día'+(cloud.last?' · '+cloud.last:'');
   b.style.borderColor=!cloud.token?'':cloud.err?'var(--bad)':'var(--ok)';
-  $('#cloudInfo').textContent=!cloud.token?'Esta PC no está conectada a la nube.':cloud.err?('Error: '+cloud.err):`Conectada. Archivo en la nube: ${cloud.gist||'—'} · última sincronización ${cloud.last||'—'} · ${crate.length} canciones.`;
+  $('#cloudLoginRow').hidden=!!cloud.token; $('#cloudTokenRow').hidden=!!cloud.token; $('#cloudSetRow').hidden=!cloud.token;
+  $('#cloudNow').hidden=!cloud.token; $('#cloudForget').hidden=!cloud.token;
+  $('#cloudInfo').textContent=!cloud.token?'Esta PC no está conectada a la nube.':cloud.err?('Error: '+cloud.err):`Conectada · última sincronización ${cloud.last||'—'} · ${crate.length} canciones · ${store.get('cloudAccess','')?'contraseña para otras PC: creada':'contraseña para otras PC: aún no creada'}`;
 }
+/* ---- contraseña propia: la clave de GitHub se guarda cifrada (AES-GCM + PBKDF2) en un Gist público ---- */
+const ACCESS_FILE='mezclador_acceso.json', KDF_ITER=600000;
+const b64=u8=>btoa(String.fromCharCode(...new Uint8Array(u8))), unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function kdf(pass,salt){ const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:KDF_ITER,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']) }
+function ghUser(){ const h=location.hostname; if(/\.github\.io$/.test(h)) return h.replace(/\.github\.io$/,''); return store.get('cloudUser','ebermude21e-cmd') }
+async function cloudSetPassword(){
+  const p1=$('#cloudNew1').value, p2=$('#cloudNew2').value;
+  if(!cloud.token){ toast('Conecta primero esta PC con la clave de GitHub.'); return }
+  if(p1.length<10){ toast('La contraseña debe tener al menos 10 caracteres.'); return }
+  if(p1!==p2){ toast('Las dos contraseñas no coinciden.'); return }
+  try{
+    const me=await gh('/user'); store.set('cloudUser',me.login);
+    const gid=await cloudFindGist();
+    const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+    const key=await kdf(p1,salt), ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify({t:cloud.token,g:gid})));
+    const blob=JSON.stringify({v:1,kdf:'PBKDF2-SHA256',iter:KDF_ITER,salt:b64(salt),iv:b64(iv),ct:b64(ct)});
+    let accId=store.get('cloudAccess','');
+    if(!accId){ for(let page=1;page<=5&&!accId;page++){ const l=await gh('/gists?per_page=100&page='+page); if(!l.length)break; const g=l.find(x=>x.files&&x.files[ACCESS_FILE]); if(g) accId=g.id } }
+    if(accId) await gh('/gists/'+accId,{method:'PATCH',body:JSON.stringify({files:{[ACCESS_FILE]:{content:blob}}})});
+    else { const g=await gh('/gists',{method:'POST',body:JSON.stringify({description:'Mezclador Híbrido — acceso cifrado',public:true,files:{[ACCESS_FILE]:{content:blob}}})}); accId=g.id }
+    store.set('cloudAccess',accId); $('#cloudNew1').value=''; $('#cloudNew2').value='';
+    toast('Contraseña guardada. En otra PC abre el mezclador, pulsa Nube y escribe solo tu contraseña.');
+  }catch(e){ toast('No se pudo guardar la contraseña: '+(e.message||e)) }
+}
+async function cloudLoginWithPassword(){
+  const pass=$('#cloudPass').value; if(!pass){ toast('Escribe tu contraseña.'); return }
+  const btn=$('#cloudPassGo'); btn.disabled=true; btn.textContent='Verificando…';
+  try{
+    const user=ghUser();
+    const list=await fetch('https://api.github.com/users/'+encodeURIComponent(user)+'/gists?per_page=100').then(r=>{ if(!r.ok) throw new Error('GitHub respondió '+r.status); return r.json() });
+    const g=list.find(x=>x.files&&x.files[ACCESS_FILE]); if(!g) throw new Error('todavía no hay contraseña creada. Créala primero en la PC que ya está conectada.');
+    const blob=await fetch(g.files[ACCESS_FILE].raw_url,{cache:'no-store'}).then(r=>r.json());
+    const key=await kdf(pass,unb64(blob.salt));
+    let plain; try{ plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(blob.iv)},key,unb64(blob.ct)) }catch(_){ throw new Error('contraseña incorrecta.') }
+    const d=JSON.parse(new TextDecoder().decode(plain));
+    cloud.token=d.t; store.set('cloudToken',d.t); cloud.gist=d.g; store.set('cloudGist',d.g); store.set('cloudAccess',g.id); store.set('cloudUser',user);
+    $('#cloudPass').value='';
+    await cloudSync(false);
+  }catch(e){ toast('No se pudo entrar: '+(e.message||e)) }
+  finally{ btn.disabled=false; btn.textContent='Entrar'; cloudUI() }
+}
+$('#cloudSetPass').onclick=cloudSetPassword;
+$('#cloudPassGo').onclick=cloudLoginWithPassword;
+$('#cloudPass').addEventListener('keydown',e=>{ if(e.key==='Enter') cloudLoginWithPassword() });
 $('#cloudBtn').onclick=()=>{ $('#cloudPanel').hidden=!$('#cloudPanel').hidden; cloudUI() };
 $('#cloudClose').onclick=()=>$('#cloudPanel').hidden=true;
-$('#cloudSave').onclick=async()=>{ const t=$('#cloudToken').value.trim(); if(!t){toast('Pega la clave de GitHub primero.');return} cloud.token=t; store.set('cloudToken',t); $('#cloudToken').value=''; await cloudSync(false) };
+$('#cloudSave').onclick=async()=>{ const t=$('#cloudToken').value.trim(); if(!t){toast('Pega la clave de GitHub primero.');return} cloud.token=t; store.set('cloudToken',t); $('#cloudToken').value=''; try{ const me=await gh('/user'); store.set('cloudUser',me.login) }catch(e){} await cloudSync(false) };
 $('#cloudNow').onclick=()=>cloudSync(false);
 $('#cloudForget').onclick=()=>{ cloud.token=''; store.set('cloudToken',''); cloudUI(); toast('Esta PC quedó desconectada de la nube. La lista en GitHub no se borró.') };
 window.addEventListener('focus',()=>{ if(cloud.token&&!ytTrans) cloudSync(true) });
