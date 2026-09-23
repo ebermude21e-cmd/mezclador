@@ -1,0 +1,1706 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mezclador Híbrido</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#0f1114; --panel:#171a1f; --panel2:#1e2229; --panel3:#262b33; --line:#2a2f38;
+  --text:#e3e6ea; --muted:#8c939d; --dim:#5b626c;
+  --a:#56a8dc; --a-soft:rgba(86,168,220,.30); --a-deep:#1d3b50;
+  --b:#e5a54e; --b-soft:rgba(229,165,78,.30); --b-deep:#4d3719;
+  --ok:#5cc58a; --warn:#e3c24b; --bad:#e0605a;
+  --sans:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 var(--sans)}
+body{padding:14px 16px 40px}
+button,select,input{font:inherit;color:inherit}
+h1,h2,h3{margin:0;font-weight:600}
+.wrap{max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+
+/* barra superior */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding:8px 2px}
+.top h1{font-size:18px;letter-spacing:.02em}
+.top h1 small{font-weight:400;color:var(--muted);margin-left:8px;font-size:13px}
+.top .sp{flex:1}
+.stat{display:flex;align-items:baseline;gap:6px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.stat b{font:500 15px var(--mono);color:var(--text);letter-spacing:0;text-transform:none}
+.stat b.ok{color:var(--ok)} .stat b.warn{color:var(--warn)} .stat b.bad{color:var(--bad)}
+
+/* paneles */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.console{display:grid;grid-template-columns:minmax(0,1fr) 300px minmax(0,1fr);gap:12px}
+@media (max-width:1180px){.console{grid-template-columns:1fr}}
+
+/* deck */
+.deck{padding:12px;display:flex;flex-direction:column;gap:10px;position:relative}
+.deck[data-d="A"]{--c:var(--a);--cs:var(--a-soft);--cd:var(--a-deep)}
+.deck[data-d="B"]{--c:var(--b);--cs:var(--b-soft);--cd:var(--b-deep)}
+.deck.drop{outline:2px dashed var(--c);outline-offset:-4px}
+.dk-head{display:flex;align-items:center;gap:10px;min-width:0}
+.dk-tag{font:600 20px var(--mono);color:var(--c);width:30px;height:30px;display:grid;place-items:center;border:1px solid var(--c);border-radius:4px;flex:none}
+.dk-title{flex:1;min-width:0}
+.dk-name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dk-sub{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dk-read{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:8px;align-items:end}
+.rd span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+.rd b{font:500 18px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rd b.big{font-size:26px;color:var(--c);line-height:1.1}
+.beats{display:flex;gap:4px;padding-bottom:6px}
+.beats i{width:14px;height:14px;border-radius:2px;background:var(--panel3)}
+.beats i.on{background:var(--c)}
+.beats i.on.first{box-shadow:0 0 0 2px var(--text) inset}
+canvas{display:block;width:100%;border-radius:4px;background:#0b0d10}
+canvas.zoom{height:120px}
+canvas.over{height:44px;cursor:pointer}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:6px 11px;cursor:pointer;line-height:1.2;white-space:nowrap}
+.btn:hover{border-color:var(--dim)}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--text);outline-offset:1px}
+.btn.sm{padding:4px 8px;font-size:12px}
+.btn.big{font:600 16px var(--mono);padding:10px 0;min-width:74px;text-align:center}
+.btn.play.on{background:var(--c);color:#0b0d10;border-color:var(--c)}
+.btn.play.armed{border-color:var(--c);color:var(--c);animation:blink .5s steps(2) infinite}
+@keyframes blink{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.btn.play.armed{animation:none}}
+.btn.tog.on{border-color:var(--c,var(--text));color:var(--c,var(--text));background:var(--cd,var(--panel3))}
+.btn.primary{background:var(--text);color:#0f1114;border-color:var(--text);font-weight:600}
+.btn:disabled{opacity:.4;cursor:default}
+.lbl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+.num{font:500 13px var(--mono);font-variant-numeric:tabular-nums}
+.tempo{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center}
+input[type=range]{accent-color:var(--c,var(--text));width:100%;margin:0}
+input.bpmIn{width:78px;background:#0b0d10;border:1px solid var(--line);border-radius:4px;padding:4px 6px;font:500 13px var(--mono)}
+select{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:4px 6px}
+.chip{font-size:11px;padding:2px 6px;border-radius:3px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.var{color:var(--warn);border-color:rgba(227,194,75,.45)}
+.chip.const{color:var(--ok);border-color:rgba(92,197,138,.45)}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.busy{position:absolute;inset:0;background:rgba(15,17,20,.82);display:grid;place-items:center;border-radius:6px;font:500 14px var(--mono);color:var(--c)}
+
+/* mezclador */
+.mixer{padding:12px;display:flex;flex-direction:column;gap:12px}
+.mx-grid{display:grid;grid-template-columns:34px 1fr 1fr;gap:6px 10px;align-items:center}
+.mx-grid .h{font:600 13px var(--mono);text-align:center}
+.mx-grid .h.a{color:var(--a)} .mx-grid .h.b{color:var(--b)}
+.mx-grid .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.mx-grid .A{--c:var(--a)} .mx-grid .B{--c:var(--b)}
+.faders{display:grid;grid-template-columns:1fr 14px 14px 1fr;gap:10px;align-items:end;justify-items:center;height:150px}
+.faders input[type=range]{writing-mode:vertical-lr;direction:rtl;width:28px;height:140px}
+.vu{width:10px;height:140px;background:#0b0d10;border-radius:2px;position:relative;overflow:hidden}
+.vu i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(to top,var(--ok) 0,var(--ok) 70%,var(--warn) 85%,var(--bad) 100%);background-size:100% 140px;background-position:bottom}
+.xf{display:flex;flex-direction:column;gap:4px}
+.xf .ends{display:flex;justify-content:space-between;font:600 12px var(--mono)}
+.xf input{accent-color:var(--text)}
+.box{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.phase{display:flex;justify-content:space-between;align-items:baseline}
+.phase b{font:500 18px var(--mono)}
+.phase b.ok{color:var(--ok)} .phase b.warn{color:var(--warn)} .phase b.bad{color:var(--bad)}
+.phasebar{height:8px;background:#0b0d10;border-radius:2px;position:relative}
+.phasebar::before{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--dim)}
+.phasebar i{position:absolute;top:0;bottom:0;width:4px;margin-left:-2px;background:var(--text);left:50%;border-radius:1px}
+
+/* sección inferior */
+.lower{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:12px}
+@media (max-width:1000px){.lower{grid-template-columns:1fr}}
+.pane{padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.pane h2{font-size:15px;display:flex;align-items:center;gap:8px}
+.pane h2 .chip{font-weight:400}
+.yt-frame{position:relative;width:100%;aspect-ratio:16/9;max-width:100%;background:#0b0d10;border-radius:4px;overflow:hidden}
+.yt-frame > div,.yt-frame iframe{position:absolute;inset:0;width:100%;height:100%}
+.yt-msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;color:var(--muted)}
+.inp{flex:1;min-width:160px;background:#0b0d10;border:1px solid var(--line);border-radius:4px;padding:7px 9px}
+.note{color:var(--muted);font-size:12px}
+.results{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}
+.res{display:grid;grid-template-columns:80px 1fr auto;gap:8px;align-items:center;padding:4px;border:1px solid var(--line);border-radius:4px}
+.res img{width:80px;height:45px;object-fit:cover;border-radius:3px;background:#0b0d10}
+.res .t{font-size:13px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.res .c{font-size:11px;color:var(--muted)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:6px 10px;cursor:pointer;color:var(--muted)}
+.tabs button.on{color:var(--text);border-bottom-color:var(--text)}
+.tbl-wrap{overflow:auto;max-height:420px;border:1px solid var(--line);border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{position:sticky;top:0;background:var(--panel2);text-align:left;font-weight:500;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:6px 8px;white-space:nowrap}
+td{padding:5px 8px;border-top:1px solid var(--line);vertical-align:middle}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+td .ttl{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td select{max-width:230px;font-size:12px}
+tr.compat td.n.bpm{color:var(--ok)}
+tr.playingA td:first-child{box-shadow:inset 3px 0 0 var(--a)}
+tr.playingB td:first-child{box-shadow:inset 3px 0 0 var(--b)}
+.bA{--c:var(--a);color:var(--a)} .bB{--c:var(--b);color:var(--b)}
+.empty{padding:18px;text-align:center;color:var(--muted)}
+details.help{color:var(--muted);font-size:13px}
+details.help summary{cursor:pointer;color:var(--text)}
+details.help ol{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:3px;max-width:900px}
+.toast{position:fixed;right:16px;bottom:16px;max-width:420px;background:var(--panel3);border:1px solid var(--dim);border-radius:6px;padding:10px 14px;font-size:13px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:9}
+.toast.show{opacity:1;transform:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.seg button{background:var(--panel);border:0;padding:7px 14px;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--text);color:#0f1114;font-weight:600}
+.ytconsole{display:grid;grid-template-columns:minmax(0,1fr) 300px minmax(0,1fr);gap:12px}
+@media (max-width:1180px){.ytconsole{grid-template-columns:1fr}}
+.ydeck{padding:12px;display:flex;flex-direction:column;gap:10px}
+.ydeck[data-d="A"]{--c:var(--a);--cd:var(--a-deep)} .ydeck[data-d="B"]{--c:var(--b);--cd:var(--b-deep)}
+.ydeck.live{border-color:var(--c)}
+.ybar{height:6px;background:#0b0d10;border-radius:3px;overflow:hidden;position:relative}
+.ybar i{position:absolute;left:0;top:0;bottom:0;background:var(--c)}
+.ybar b{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--warn)}
+.ymix{padding:12px;display:flex;flex-direction:column;gap:12px}
+.btn.next{font:600 17px var(--sans);padding:14px 10px;background:var(--text);color:#0f1114;border-color:var(--text)}
+.btn.next:disabled{opacity:.5}
+.btn.auto.on{background:var(--ok);border-color:var(--ok);color:#0f1114;font-weight:600}
+.upnext{font-size:13px;line-height:1.35}
+.upnext b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{height:4px;background:#0b0d10;border-radius:2px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--ok)}
+body.mode-yt .files-only{display:none!important}
+body.mode-files .yt-only{display:none!important}
+tr.nowA td:first-child{box-shadow:inset 3px 0 0 var(--a)}
+tr.nowB td:first-child{box-shadow:inset 3px 0 0 var(--b)}
+tr.upnext-row td{background:rgba(92,197,138,.07)}
+tr.played td{color:var(--dim)}
+tr.grp td{background:var(--panel2);font-weight:600;color:var(--text);font-size:12px;letter-spacing:.04em;padding:5px 8px}
+tr.grp td span{color:var(--muted);font-weight:400;margin-left:6px}
+.cell-in{background:transparent;border:1px solid transparent;border-radius:3px;padding:2px 4px;width:100%;min-width:110px;color:inherit;font-size:13px}
+.cell-in:hover,.cell-in:focus{border-color:var(--line);background:#0b0d10}
+select.gen{font-size:12px;padding:2px 4px;max-width:120px}
+.gchips{display:flex;flex-wrap:wrap;gap:4px}
+.gchips button{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:2px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
+.gchips button.on{background:var(--text);color:#0f1114;border-color:var(--text)}
+.banner{padding:10px 14px;border:1px solid var(--warn);color:var(--warn);border-radius:6px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <h1>Mezclador Híbrido</h1>
+    <div class="seg" role="tablist" aria-label="Modo">
+      <button data-mode="yt" class="on">Mezclar desde YouTube</button>
+      <button data-mode="files">Mezclar mis archivos</button>
+    </div>
+    <span class="sp"></span>
+    <div class="stat files-only">Master <b id="stMaster">—</b></div>
+    <div class="stat files-only">BPM master <b id="stBpm">—</b></div>
+    <div class="stat files-only">Audio <b id="stAudio">inactivo</b></div>
+    <button class="btn sm" id="cloudBtn" title="Guardar la lista en tu cuenta de GitHub para usarla en cualquier PC">Nube: sin configurar</button>
+  </div>
+
+ <div id="cloudPanel" class="panel" hidden style="padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+    <div class="row" style="justify-content:space-between"><b>Lista en la nube (GitHub)</b><button class="btn sm" id="cloudClose">Cerrar</button></div>
+    <div class="note">La Lista de mezcla se guarda en un archivo privado (Gist) de tu cuenta de GitHub. Así es la misma en todas tus PC y se va completando desde cualquiera.</div>
+    <div class="row">
+      <input class="inp" id="cloudToken" type="password" placeholder="Pega aquí tu clave de GitHub (empieza por ghp_ o github_pat_)" autocomplete="off">
+      <button class="btn" id="cloudSave">Conectar</button>
+      <button class="btn" id="cloudNow">Sincronizar ahora</button>
+      <button class="btn sm" id="cloudForget" title="Quita la clave de este navegador">Desconectar esta PC</button>
+    </div>
+    <div class="note" id="cloudInfo">—</div>
+  </div>
+
+  <div id="fileBanner" class="banner" hidden>Esta página se abrió como archivo local, por eso YouTube no puede cargar el reproductor. Ciérrala y ábrela con <b>Iniciar Mezclador.bat</b>. Los decks funcionan igual.</div>
+
+  <div class="ytconsole yt-only">
+    <section class="ydeck panel" data-d="A" id="ydA">
+      <div class="dk-head">
+        <span class="dk-tag">A</span>
+        <div class="dk-title"><div class="dk-name" id="ydNameA">Vacío</div><div class="dk-sub" id="ydSubA">Carga una canción desde la lista</div></div>
+      </div>
+      <div class="yt-frame"><div id="ydPlayerA"></div></div>
+      <div class="dk-read" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="rd"><span>Tiempo</span><b id="ydTA">—</b></div>
+        <div class="rd"><span>Restante</span><b id="ydRA">—</b></div>
+        <div class="rd"><span>BPM</span><b id="ydBA">—</b></div>
+        <div class="rd"><span>Volumen</span><b id="ydVA">0</b></div>
+      </div>
+      <div class="ybar" title="Amarillo = punto de salida automática"><i id="ydPA"></i><b id="ydOA" hidden></b></div>
+      <div class="row">
+        <button class="btn" data-yd="play">▶ / ❚❚</button>
+        <button class="btn" data-yd="tap" title="Toca en cada golpe empezando en el 1 del compás">Tap BPM</button>
+        <button class="btn" data-yd="out" title="La transición automática empezará en este punto">Marcar salida</button>
+        <button class="btn" data-yd="in" title="La próxima vez esta canción entrará desde este punto">Marcar entrada</button>
+      </div>
+    </section>
+    <section class="ymix panel" aria-label="Mezcla YouTube">
+      <button class="btn next" id="ytNextBtn">Siguiente canción ▶▶</button>
+      <div class="prog"><i id="ytProg"></i></div>
+      <button class="btn auto" id="ytAuto">Auto DJ: apagado</button>
+      <div class="upnext"><span class="lbl">Próxima</span><b id="ytUpNext">—</b></div>
+      <div class="xf">
+        <div class="ends"><span style="color:var(--a)">A</span><span class="lbl">Crossfader</span><span style="color:var(--b)">B</span></div>
+        <input type="range" id="yxf" min="0" max="1" step="0.001" value="0" aria-label="Crossfader YouTube">
+      </div>
+      <div class="box">
+        <div class="row" style="justify-content:space-between"><span class="lbl">Duración de la mezcla</span>
+          <select id="ytFade"><option value="1">1 s</option><option value="2">2 s</option><option value="3">3 s</option><option value="4">4 s</option><option value="6">6 s</option><option value="8">8 s</option><option value="10" selected>10 s</option><option value="12">12 s</option><option value="16">16 s</option></select></div>
+        <div class="row" style="justify-content:space-between"><span class="lbl">Auto DJ sale</span>
+          <select id="ytLead"><option value="10">10 s antes del final</option><option value="15">15 s antes</option><option value="20" selected>20 s antes</option><option value="30">30 s antes</option></select></div>
+        <div class="row" style="justify-content:space-between"><span class="lbl">Entrada</span>
+          <select id="ytQuant"><option value="bar" selected>En el compás (si hay BPM)</option><option value="now">Al instante</option></select></div>
+        <div class="row" style="justify-content:space-between"><span class="lbl">Velocidad de entrada</span>
+          <select id="ytInSpd"><option value="0.12">Muy rápida</option><option value="0.25" selected>Rápida</option><option value="0.5">Media</option><option value="1">Lenta</option></select></div>
+        <div class="row" style="justify-content:space-between"><span class="lbl">Ajuste de entrada</span><span class="num" id="ytAdjTxt">0 ms</span></div>
+        <input type="range" id="ytAdj" min="-400" max="400" step="10" value="0" title="Si la canción entra tarde, muévelo a la izquierda; si entra antes, a la derecha" style="accent-color:var(--text)">
+        <div class="note" style="display:flex;justify-content:space-between"><span>◄ antes</span><span>después ►</span></div>
+        <div class="row" style="justify-content:space-between"><span class="lbl">Curva (crossfader manual)</span>
+          <select id="ytCurve"><option value="smooth" selected>Suave (sin bajón)</option><option value="dip">Clásica (baja al medio)</option></select></div>
+      </div>
+      <div class="box">
+        <div class="row" style="justify-content:space-between"><span class="lbl">Volumen general</span><span class="num" id="ymvTxt">100%</span></div>
+        <input type="range" id="ymv" min="0" max="1" step="0.01" value="1" style="accent-color:var(--text)">
+      </div>
+    </section>
+    <section class="ydeck panel" data-d="B" id="ydB">
+      <div class="dk-head">
+        <span class="dk-tag">B</span>
+        <div class="dk-title"><div class="dk-name" id="ydNameB">Vacío</div><div class="dk-sub" id="ydSubB">Carga una canción desde la lista</div></div>
+      </div>
+      <div class="yt-frame"><div id="ydPlayerB"></div></div>
+      <div class="dk-read" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="rd"><span>Tiempo</span><b id="ydTB">—</b></div>
+        <div class="rd"><span>Restante</span><b id="ydRB">—</b></div>
+        <div class="rd"><span>BPM</span><b id="ydBB">—</b></div>
+        <div class="rd"><span>Volumen</span><b id="ydVB">0</b></div>
+      </div>
+      <div class="ybar" title="Amarillo = punto de salida automática"><i id="ydPB"></i><b id="ydOB" hidden></b></div>
+      <div class="row">
+        <button class="btn" data-yd="play">▶ / ❚❚</button>
+        <button class="btn" data-yd="tap" title="Toca en cada golpe empezando en el 1 del compás">Tap BPM</button>
+        <button class="btn" data-yd="out" title="La transición automática empezará en este punto">Marcar salida</button>
+        <button class="btn" data-yd="in" title="La próxima vez esta canción entrará desde este punto">Marcar entrada</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="console files-only">
+    <section class="deck panel" id="deckA" data-d="A"></section>
+
+    <section class="mixer panel" aria-label="Mezclador">
+      <div class="mx-grid">
+        <span></span><span class="h a">A</span><span class="h b">B</span>
+        <span class="k">Gan.</span>
+        <input class="A" type="range" id="trimA" min="-12" max="12" step="0.5" value="0" title="Ganancia A (dB)">
+        <input class="B" type="range" id="trimB" min="-12" max="12" step="0.5" value="0" title="Ganancia B (dB)">
+        <span class="k">Agud.</span>
+        <input class="A" type="range" id="hiA" min="-1" max="1" step="0.01" value="0">
+        <input class="B" type="range" id="hiB" min="-1" max="1" step="0.01" value="0">
+        <span class="k">Med.</span>
+        <input class="A" type="range" id="midA" min="-1" max="1" step="0.01" value="0">
+        <input class="B" type="range" id="midB" min="-1" max="1" step="0.01" value="0">
+        <span class="k">Grav.</span>
+        <input class="A" type="range" id="lowA" min="-1" max="1" step="0.01" value="0">
+        <input class="B" type="range" id="lowB" min="-1" max="1" step="0.01" value="0">
+        <span class="k">Filtro</span>
+        <input class="A" type="range" id="fltA" min="-1" max="1" step="0.01" value="0">
+        <input class="B" type="range" id="fltB" min="-1" max="1" step="0.01" value="0">
+      </div>
+      <div class="note" style="text-align:center">Doble clic en un control lo devuelve al centro</div>
+
+      <div class="faders">
+        <input type="range" id="volA" min="0" max="1" step="0.005" value="0.85" style="accent-color:var(--a)" aria-label="Volumen A">
+        <div class="vu"><i id="vuA"></i></div>
+        <div class="vu"><i id="vuB"></i></div>
+        <input type="range" id="volB" min="0" max="1" step="0.005" value="0.85" style="accent-color:var(--b)" aria-label="Volumen B">
+      </div>
+
+      <div class="xf">
+        <div class="ends"><span style="color:var(--a)">A</span><span class="lbl">Crossfader</span><span style="color:var(--b)">B</span></div>
+        <input type="range" id="xf" min="0" max="1" step="0.001" value="0" aria-label="Crossfader">
+      </div>
+
+      <div class="box">
+        <div class="phase"><span class="lbl">Desfase de golpes</span><b id="phaseTxt">—</b></div>
+        <div class="phasebar"><i id="phaseDot"></i></div>
+      </div>
+
+      <div class="box">
+        <div class="row" style="justify-content:space-between">
+          <span class="lbl">Entrada al play</span>
+          <select id="quant">
+            <option value="bar" selected>En el compás</option>
+            <option value="beat">En el tiempo</option>
+            <option value="off">Inmediata</option>
+          </select>
+        </div>
+        <div class="row" style="justify-content:space-between">
+          <span class="lbl">Transición</span>
+          <select id="mxBars">
+            <option value="4">4 compases</option>
+            <option value="8">8 compases</option>
+            <option value="16" selected>16 compases</option>
+            <option value="32">32 compases</option>
+          </select>
+        </div>
+        <label class="row" style="justify-content:space-between"><span class="lbl">Cambio de graves</span><input type="checkbox" id="bassSwap" checked></label>
+        <button class="btn primary" id="btnMix">Mezclar A → B</button>
+        <button class="btn next" id="fNextBtn">Siguiente canción ▶▶</button>
+        <button class="btn auto" id="fAuto">Auto DJ: apagado</button>
+        <div class="upnext"><span class="lbl">Próxima</span><b id="fUpNext">—</b></div>
+      </div>
+
+      <div class="box">
+        <div class="row" style="justify-content:space-between"><span class="lbl">Volumen general</span><span class="num" id="mvTxt">90%</span></div>
+        <input type="range" id="mv" min="0" max="1" step="0.01" value="0.9" style="accent-color:var(--text)">
+      </div>
+    </section>
+
+    <section class="deck panel" id="deckB" data-d="B"></section>
+  </div>
+
+  <div class="lower">
+    <section class="pane panel" aria-label="YouTube">
+      <h2>Vista previa <span class="chip">escuchar y elegir</span></h2>
+      <div class="yt-frame"><div id="ytPlayer"></div><div class="yt-msg" id="ytMsg">Pega un enlace de YouTube (canción o lista) y pulsa Abrir.</div></div>
+      <div class="row">
+        <input class="inp" id="ytUrl" placeholder="Enlace de YouTube, ID del video o de la lista">
+        <button class="btn" id="ytOpen">Abrir</button>
+      </div>
+      <div class="row">
+        <input class="inp" id="ytQ" placeholder="Buscar en YouTube">
+        <button class="btn" id="ytSearch">Buscar</button>
+      </div>
+      <div class="results" id="ytResults"></div>
+      <div class="row" style="justify-content:space-between">
+        <div class="row"><span class="lbl">En vista previa</span> <span id="ytNow" class="note">—</span></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="ytAdd">Añadir a la lista</button>
+        <button class="btn" id="ytAddAll" hidden>Añadir toda la lista</button>
+        <button class="btn" id="ytTap" title="Toca en cada golpe empezando en el 1 del compás">Tap BPM</button>
+        <button class="btn" id="ytMarkIn" title="Punto desde donde entrará la canción al mezclarla">Marcar entrada</button>
+        <select id="ytGenre" title="Género con el que se añade la canción" class="gen" style="max-width:none"></select>
+        <span class="num" id="ytTapTxt">— BPM</span>
+        <span class="sep"></span>
+        <span class="lbl">Vol.</span>
+        <input type="range" id="ytVol" min="0" max="100" step="1" value="60" style="width:110px;accent-color:var(--text)">
+      </div>
+      <details class="help">
+        <summary>Clave de API para buscar dentro de la página (opcional)</summary>
+        <div class="row" style="margin-top:8px">
+          <input class="inp" id="ytKey" placeholder="Clave de YouTube Data API v3" autocomplete="off">
+          <button class="btn sm" id="ytKeySave">Guardar</button>
+        </div>
+        <p style="margin:6px 0 0">Sin clave, “Buscar” abre YouTube en otra pestaña y copias el enlace aquí. Con clave, los resultados salen en esta página (cuota gratuita: 100 búsquedas al día).</p>
+      </details>
+    </section>
+
+    <section class="pane panel" aria-label="Lista y archivos">
+      <div class="tabs" role="tablist">
+        <button class="on" data-tab="crate" role="tab">Lista de mezcla <span id="crateN" class="num"></span></button>
+        <button data-tab="lib" role="tab">Mis archivos <span id="libN" class="num"></span></button>
+      </div>
+
+      <div data-pane="crate" class="pane-in" style="display:flex;flex-direction:column;gap:10px">
+        <div class="row">
+          <button class="btn sm files-only" id="autoLink">Vincular archivos automáticamente</button>
+          <button class="btn sm" id="crateReset" title="Vuelve a marcar todas como no tocadas">Reiniciar lista</button>
+          <button class="btn sm" id="crateClear" title="Quita todas las canciones de la lista">Vaciar lista</button>
+        </div>
+        <div class="row">
+          <span class="lbl">Ver por</span>
+          <select id="crSort">
+            <option value="play">Orden de reproducción</option>
+            <option value="genre">Género</option>
+            <option value="artist">Cantante</option>
+            <option value="title">Título</option>
+            <option value="bpm">BPM</option>
+            <option value="list">Lista de YouTube</option>
+          </select>
+          <select id="crList" title="Mostrar solo una de tus listas de YouTube"><option value="">Todas mis listas</option></select>
+          <input class="inp" id="crFind" placeholder="Buscar canción o cantante" style="max-width:240px">
+          <button class="btn sm" id="crApply" title="La lista sonará en el orden que estás viendo" hidden>Tocar en este orden</button>
+        </div>
+        <div class="gchips" id="crGenres"></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th style="text-align:right">#</th><th>Canción</th><th>Cantante</th><th>Género</th><th style="text-align:right">BPM</th><th>Entrada · salida</th><th class="files-only">Archivo propio</th><th></th></tr></thead>
+          <tbody id="crateBody"></tbody>
+        </table></div>
+      </div>
+
+      <div data-pane="lib" class="pane-in" hidden style="display:flex;flex-direction:column;gap:10px">
+        <div class="row">
+          <label class="btn sm">Elegir carpeta de música<input type="file" id="pickDir" webkitdirectory multiple hidden></label>
+          <label class="btn sm">Elegir archivos<input type="file" id="pickFiles" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus" multiple hidden></label>
+          <button class="btn sm" id="anAll">Analizar BPM de todos</button>
+          <input class="inp" id="libFilter" placeholder="Filtrar">
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Archivo</th><th style="text-align:right">Duración</th><th style="text-align:right">BPM</th><th>Tempo</th><th></th></tr></thead>
+          <tbody id="libBody"></tbody>
+        </table></div>
+      </div>
+    </section>
+  </div>
+
+  <details class="help panel" style="padding:10px 14px">
+    <summary>Cómo se usa</summary>
+    <ol>
+      <li><b>Mezclar desde YouTube:</b> abre una canción o una lista en la vista previa y pulsa <b>Añadir a la lista</b> o <b>Añadir toda la lista</b>. El orden de la lista es el orden en que suenan (▲▼ para cambiarlo).</li>
+      <li>Pulsa <b>Empezar ▶</b>. Mientras suena, el otro plato carga solo la siguiente canción.</li>
+      <li><b>Siguiente canción ▶▶</b> hace la mezcla completa: entra la próxima y baja la actual con el crossfader durante el tiempo elegido. <b>Auto DJ</b> lo hace solo, 20 s antes del final (o en la <b>salida</b> que marques).</li>
+      <li>Para que entre justo en el golpe: en la canción que suena pulsa <b>Tap BPM</b> al ritmo, empezando en el 1 del compás (4 toques o más). Con <b>Marcar entrada</b> eliges desde dónde entra cada canción (saltas intros largas).</li>
+      <li><b>Mezclar mis archivos:</b> igual, pero con tus MP3/WAV. Ahí el tempo se iguala de verdad y la entrada cae en el golpe con precisión de milisegundos.</li>
+</ol>
+  </details>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+'use strict';
+/* ============ utilidades ============ */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const mod=(a,n)=>((a%n)+n)%n;
+const fmtT=s=>{if(!isFinite(s))return'—';const neg=s<0;s=Math.abs(s);const m=Math.floor(s/60),r=s-m*60;return(neg?'-':'')+m+':'+(r<10?'0':'')+r.toFixed(1)};
+const fmtD=s=>{if(!isFinite(s))return'—';const m=Math.floor(s/60),r=Math.round(s-m*60);return m+':'+(r<10?'0':'')+r};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k,d){try{const v=localStorage.getItem('mzh.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('mzh.'+k,JSON.stringify(v))}catch(e){}}};
+let toastTimer=0;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),4200)}
+const DPR=()=>Math.max(1,window.devicePixelRatio||1);
+
+/* ============ motor de audio ============ */
+let ctx=null, masterGain=null, xfader=0;
+function audio(){
+  if(!ctx){
+    ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
+    masterGain=ctx.createGain(); masterGain.gain.value=+$('#mv').value; masterGain.connect(ctx.destination);
+    decks.forEach(d=>d.build()); applyXF();
+  }
+  if(ctx.state==='suspended') ctx.resume();
+  return ctx;
+}
+document.addEventListener('pointerdown',()=>{if(ctx&&ctx.state==='suspended')ctx.resume()},true);
+
+/* ---------- análisis: BPM + mapa de golpes ---------- */
+const PK_RES=200; // columnas de onda por segundo
+function computePeaks(buf){
+  const n=buf.length, sr=buf.sampleRate, ch=[];
+  for(let c=0;c<Math.min(2,buf.numberOfChannels);c++) ch.push(buf.getChannelData(c));
+  const bins=Math.ceil(buf.duration*PK_RES), per=sr/PK_RES;
+  const pk=new Float32Array(bins), pl=new Float32Array(bins);
+  const k=1-Math.exp(-2*Math.PI*150/sr);
+  let lp=0, sumSq=0;
+  for(let b=0;b<bins;b++){
+    const i0=Math.floor(b*per), i1=Math.min(n,Math.floor((b+1)*per));
+    let mx=0, ml=0;
+    for(let i=i0;i<i1;i++){
+      const x=ch.length>1?(ch[0][i]+ch[1][i])*0.5:ch[0][i];
+      lp+=k*(x-lp); sumSq+=x*x;
+      const ax=x<0?-x:x, al=lp<0?-lp:lp;
+      if(ax>mx)mx=ax; if(al>ml)ml=al;
+    }
+    pk[b]=mx; pl[b]=ml;
+  }
+  let pmax=1e-6; for(let b=0;b<bins;b++) if(pk[b]>pmax)pmax=pk[b];
+  const rms=Math.sqrt(sumSq/Math.max(1,n));
+  return {pk,pl,pmax,rms};
+}
+
+async function analyzeBuffer(buf){
+  const SR=11025, HOP=128, FPS=SR/HOP;
+  const len=Math.max(HOP*8,Math.ceil(buf.duration*SR));
+  const render=async(type,freq)=>{
+    const oc=new OfflineAudioContext(1,len,SR);
+    const s=oc.createBufferSource(); s.buffer=buf; let node=s;
+    if(type){const f=oc.createBiquadFilter();f.type=type;f.frequency.value=freq;f.Q.value=0.707;s.connect(f);node=f;}
+    node.connect(oc.destination); s.start(0);
+    return (await oc.startRendering()).getChannelData(0);
+  };
+  const low=await render('lowpass',160);
+  const full=await render(null);
+  const n=Math.floor(len/HOP);
+  const eL=new Float32Array(n), eF=new Float32Array(n), rms=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    let sl=0,sf=0; const o=i*HOP;
+    for(let j=0;j<HOP;j++){const a=low[o+j],b=full[o+j];sl+=a*a;sf+=b*b}
+    eL[i]=Math.log(sl/HOP+1e-4); eF[i]=Math.log(sf/HOP+1e-4); rms[i]=Math.sqrt(sf/HOP);
+  }
+  // envolvente de ataques (flujo de energía, graves + banda completa)
+  const raw=new Float32Array(n);
+  for(let i=1;i<n;i++) raw[i]=Math.max(0,eL[i]-eL[i-1])+0.6*Math.max(0,eF[i]-eF[i-1]);
+  const O=new Float32Array(n), W=8;
+  let run=0; for(let i=0;i<Math.min(n,W+1);i++) run+=raw[i];
+  for(let i=0;i<n;i++){
+    const lo=i-W, hi=i+W;
+    const cnt=Math.min(n-1,hi)-Math.max(0,lo)+1;
+    O[i]=Math.max(0,raw[i]-run/cnt);
+    if(hi+1<n) run+=raw[hi+1];
+    if(lo>=0) run-=raw[lo];
+  }
+  let mean=0; for(let i=0;i<n;i++) mean+=O[i]; mean/=n;
+  let sd=0; for(let i=0;i<n;i++) sd+=(O[i]-mean)**2; sd=Math.sqrt(sd/n)||1;
+  for(let i=0;i<n;i++) O[i]/=sd;
+  // versión suavizada para tempo y seguimiento (evita perder picos en retardos fraccionarios)
+  const Os=new Float32Array(n);
+  { const k=[1,4,6,4,1]; let tmp=new Float32Array(n);
+    for(let pass=0;pass<2;pass++){ const src=pass?tmp:O, dst=pass?Os:tmp;
+      for(let i=0;i<n;i++){ let s=0,w=0; for(let j=-2;j<=2;j++){const q=i+j; if(q>=0&&q<n){s+=src[q]*k[j+2];w+=k[j+2]}} dst[i]=s/w } } }
+  // inicio de la música
+  let rmax=0; for(let i=0;i<n;i++) if(rms[i]>rmax) rmax=rms[i];
+  let startF=0; for(let i=0;i<n;i++){ if(rms[i]>0.08*rmax){startF=i;break} }
+
+  // tempo por autocorrelación con preferencia ~110 BPM
+  const Lmin=Math.floor(60*FPS/210), Lmax=Math.ceil(60*FPS/55);
+  const acfTop=Math.min(n-2,2*Lmax+2);
+  const acf=new Float64Array(acfTop+2);
+  for(let L=Math.max(1,Math.floor(Lmin/2));L<=acfTop;L++){
+    let s=0; for(let i=0;i+L<n;i++) s+=Os[i]*Os[i+L]; acf[L]=s/(n-L);
+  }
+  const acfI=x=>{const i=Math.floor(x),f=x-i;if(i<1||i+1>acfTop)return 0;return acf[i]*(1-f)+acf[i+1]*f};
+  const score=new Float64Array(Lmax+2);
+  let bestL=Lmin, bestS=-Infinity;
+  for(let L=Lmin;L<=Lmax;L++){
+    const bpm=60*FPS/L, lg=Math.log2(bpm/110);
+    const w=Math.exp(-0.5*(lg/0.85)**2);
+    score[L]=w*(acfI(L)+0.5*acfI(2*L));
+    if(score[L]>bestS){bestS=score[L];bestL=L}
+  }
+  let P0=bestL;
+  if(bestL>Lmin&&bestL<Lmax){
+    const a=score[bestL-1],b=score[bestL],c=score[bestL+1],den=a-2*b+c;
+    if(den<0) P0=bestL+clamp(0.5*(a-c)/den,-0.5,0.5);
+  }
+
+  // seguimiento de golpes por programación dinámica (tolera tempo variable)
+  const alpha=90, pLo=Math.max(1,Math.round(P0/2)), pHi=Math.round(2*P0);
+  const pen=new Float64Array(pHi+1);
+  for(let d=pLo;d<=pHi;d++){const l=Math.log(d/P0);pen[d]=-alpha*l*l}
+  const C=new Float64Array(n), back=new Int32Array(n).fill(-1);
+  for(let t=0;t<n;t++){
+    let best=-Infinity, bi=-1;
+    for(let tau=Math.max(0,t-pHi);tau<=t-pLo;tau++){const v=C[tau]+pen[t-tau];if(v>best){best=v;bi=tau}}
+    if(bi>=0&&best>0){C[t]=Os[t]+best;back[t]=bi}else{C[t]=Os[t]}
+  }
+  let tEnd=n-1, cm=-Infinity;
+  for(let t=Math.max(0,n-Math.round(2*P0));t<n;t++) if(C[t]>cm){cm=C[t];tEnd=t}
+  const frames=[]; for(let t=tEnd;t>=0;t=back[t]) frames.push(t);
+  frames.reverse();
+  // ajuste fino sub-cuadro
+  let times=frames.map(f=>{
+    let bf=f, bv=O[f];
+    for(let k=Math.max(1,f-2);k<=Math.min(n-2,f+2);k++) if(O[k]>bv){bv=O[k];bf=k}
+    let off=0; const a=O[bf-1]||0,b=O[bf],c=O[bf+1]||0,den=a-2*b+c;
+    if(den<0) off=clamp(0.5*(a-c)/den,-0.5,0.5);
+    return (bf+off+0.5)*HOP/SR-0.002;
+  });
+  if(times.length<8){
+    const per=P0/FPS, t0=startF/FPS; times=[];
+    for(let t=t0;t<buf.duration;t+=per) times.push(t);
+  }
+  // ¿tempo constante? regresión robusta
+  const fit=(idx,ts)=>{let n=idx.length,sx=0,sy=0,sxx=0,sxy=0;for(let i=0;i<n;i++){sx+=idx[i];sy+=ts[i];sxx+=idx[i]*idx[i];sxy+=idx[i]*ts[i]}const b=(n*sxy-sx*sy)/(n*sxx-sx*sx);return{a:(sy-b*sx)/n,b}};
+  let idx=times.map((_,i)=>i), ts=times.slice();
+  let g=fit(idx,ts);
+  for(let pass=0;pass<2;pass++){
+    const keepI=[],keepT=[];
+    for(let i=0;i<idx.length;i++){ if(Math.abs(ts[i]-(g.a+g.b*idx[i]))<0.04){keepI.push(idx[i]);keepT.push(ts[i])} }
+    if(keepI.length>times.length*0.5){idx=keepI;ts=keepT;g=fit(idx,ts)}
+  }
+  let res=0; for(let i=0;i<times.length;i++) res+=(times[i]-(g.a+g.b*i))**2;
+  res=Math.sqrt(res/times.length);
+  let beats, mode;
+  if(res<0.015 && g.b>0.2 && g.b<1.2){
+    mode='const'; beats=[];
+    const k0=Math.ceil((0-g.a)/g.b), k1=Math.floor((buf.duration-g.a)/g.b);
+    for(let k=k0;k<=k1;k++) beats.push(g.a+g.b*k);
+  }else{
+    mode='var'; beats=new Array(times.length);
+    const H=4;
+    for(let i=0;i<times.length;i++){
+      const lo=Math.max(0,i-H), hi=Math.min(times.length-1,i+H);
+      const ii=[],tt=[]; for(let j=lo;j<=hi;j++){ii.push(j);tt.push(times[j])}
+      const f=fit(ii,tt); beats[i]=f.a+f.b*i;
+    }
+    for(let i=1;i<beats.length;i++) if(beats[i]<=beats[i-1]+0.05) beats[i]=beats[i-1]+0.05;
+  }
+  const startT=startF/FPS;
+  let downIdx=0; for(let i=0;i<beats.length;i++){ if(beats[i]>=startT-0.03){downIdx=i;break} }
+  return {v:2,mode,downIdx,beats:beats.map(x=>Math.round(x*1e4)/1e4)};
+}
+
+/* ---------- deck ---------- */
+const EQ_F={low:{type:'lowshelf',f:220},mid:{type:'peaking',f:1000},hi:{type:'highshelf',f:4200}};
+const ZOOM_SEC=6;
+class Deck{
+  constructor(id){
+    this.id=id; this.el=$('#deck'+id);
+    this.buffer=null; this.name=''; this.key=''; this.ready=false;
+    this.beats=new Float64Array(0); this.downIdx=0; this.mode='const';
+    this.rate=1; this.bend=1; this.range=0.08;
+    this.playing=false; this.startCtx=0; this.startPos=0; this.pausedPos=0; this.cue=0;
+    this.src=null; this.sync=false;
+    this.eq={low:0,mid:0,hi:0}; this.flt=0; this.vol=0.85; this.trimDb=0;
+    this.render();
+  }
+  render(){
+    const id=this.id;
+    this.el.innerHTML=`
+      <div class="dk-head">
+        <span class="dk-tag">${id}</span>
+        <div class="dk-title"><div class="dk-name">Sin pista</div><div class="dk-sub">Arrastra un archivo aquí o carga desde la lista</div></div>
+        <label class="btn sm">Cargar<input type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus" hidden></label>
+      </div>
+      <div class="dk-read">
+        <div class="rd"><span>BPM</span><b class="big bpm">—</b></div>
+        <div class="rd"><span>Tempo</span><b class="pct">0.00%</b></div>
+        <div class="rd"><span>Tiempo</span><b class="time">0:00.0</b></div>
+        <div class="rd"><span>Restante</span><b class="rem">—</b></div>
+        <div class="beats" title="Tiempo dentro del compás"><i></i><i></i><i></i><i></i></div>
+      </div>
+      <canvas class="zoom"></canvas>
+      <canvas class="over" title="Clic para ir a ese punto"></canvas>
+      <div class="row">
+        <button class="btn big cue" title="Sonando: vuelve al CUE. Detenido: fija el CUE aquí">CUE</button>
+        <button class="btn big play" title="Reproducir / pausa">▶</button>
+        <button class="btn big tog sync" title="Igualar tempo y golpes al otro deck">SYNC</button>
+        <span class="sep"></span>
+        <span class="lbl">Saltar</span>
+        <button class="btn sm" data-j="-16">−16</button><button class="btn sm" data-j="-4">−4</button>
+        <button class="btn sm" data-j="4">+4</button><button class="btn sm" data-j="16">+16</button>
+      </div>
+      <div class="tempo">
+        <span class="lbl">Tempo</span>
+        <input type="range" class="tp" min="-1" max="1" step="0.0005" value="0" id="tp${id}" aria-label="Tempo ${id}">
+        <select class="rng" id="rng${id}" title="Rango del tempo"><option value="0.08">±8%</option><option value="0.16">±16%</option><option value="0.5">±50%</option></select>
+        <span class="row" style="gap:4px"><button class="btn sm bend" data-b="0.96" title="Frenar (mantener pulsado)">◄◄</button><button class="btn sm bend" data-b="1.04" title="Empujar (mantener pulsado)">►►</button></span>
+      </div>
+      <div class="row">
+        <span class="lbl">Rejilla</span>
+        <input class="bpmIn" type="number" step="0.01" min="40" max="250" id="bpmIn${id}" title="BPM de la pista (tempo original)">
+        <button class="btn sm" data-g="x2">×2</button><button class="btn sm" data-g="half">÷2</button>
+        <button class="btn sm" data-g="tap">Tap</button>
+        <span class="sep"></span>
+        <button class="btn sm" data-g="nudgeL" title="Mover rejilla 5 ms antes">◄</button><button class="btn sm" data-g="nudgeR" title="Mover rejilla 5 ms después">►</button>
+        <button class="btn sm" data-g="oneL" title="Tiempo 1 un golpe antes">1 ◄</button><button class="btn sm" data-g="oneR" title="Tiempo 1 un golpe después">1 ►</button>
+        <button class="btn sm" data-g="mark" title="Poner el tiempo 1 donde está el cursor">Marcar 1</button>
+        <span class="chip mode">—</span>
+      </div>
+      <div class="busy" hidden>Analizando…</div>`;
+    const q=s=>$(s,this.el);
+    this.ui={name:q('.dk-name'),sub:q('.dk-sub'),bpm:q('.bpm'),pct:q('.pct'),time:q('.time'),rem:q('.rem'),beats:$$('.beats i',this.el),
+      zoom:q('canvas.zoom'),over:q('canvas.over'),play:q('.play'),cue:q('.cue'),sync:q('.sync'),tp:q('.tp'),rng:q('.rng'),bpmIn:q('.bpmIn'),mode:q('.mode'),busy:q('.busy')};
+    this.zg=this.ui.zoom.getContext('2d'); this.og=this.ui.over.getContext('2d'); this.ovImg=null;
+    q('input[type=file]').addEventListener('change',e=>{const f=e.target.files[0];if(f){addLibFiles([f]);loadFile(this,f)}e.target.value=''});
+    this.ui.play.onclick=()=>this.togglePlay();
+    this.ui.cue.onclick=()=>this.cueBtn();
+    this.ui.sync.onclick=()=>this.setSync(!this.sync,true);
+    $$('[data-j]',this.el).forEach(b=>b.onclick=()=>this.jump(+b.dataset.j));
+    this.ui.tp.addEventListener('input',()=>{ if(this.sync){this.setSync(false)} this.setRate(1+(+this.ui.tp.value)*this.range,false) });
+    this.ui.tp.addEventListener('dblclick',()=>{ if(this.sync)this.setSync(false); this.setRate(1,true) });
+    this.ui.rng.onchange=()=>{this.range=+this.ui.rng.value;this.syncSlider()};
+    $$('.bend',this.el).forEach(b=>{
+      const on=()=>{ if(this.sync)this.setSync(false); this.setBend(+b.dataset.b) };
+      const off=()=>this.setBend(1);
+      b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off); b.addEventListener('pointerleave',off); b.addEventListener('pointercancel',off);
+    });
+    this.ui.bpmIn.addEventListener('change',()=>{const v=+this.ui.bpmIn.value; if(v>=40&&v<=250) this.setUniform(v); else this.showBpm()});
+    $$('[data-g]',this.el).forEach(b=>b.onclick=()=>this.gridOp(b.dataset.g));
+    this.ui.over.addEventListener('click',e=>{
+      if(!this.ready)return; const r=this.ui.over.getBoundingClientRect();
+      this.seek(clamp((e.clientX-r.left)/r.width,0,1)*this.buffer.duration,true);
+    });
+    // arrastrar y soltar
+    ['dragenter','dragover'].forEach(ev=>this.el.addEventListener(ev,e=>{e.preventDefault();this.el.classList.add('drop')}));
+    ['dragleave','drop'].forEach(ev=>this.el.addEventListener(ev,e=>{e.preventDefault();this.el.classList.remove('drop')}));
+    this.el.addEventListener('drop',e=>{const f=Array.from(e.dataTransfer.files).find(isAudio);if(f){addLibFiles([f]);loadFile(this,f)}});
+    new ResizeObserver(()=>this.resize()).observe(this.ui.zoom);
+    this.tapTimes=[];
+  }
+  build(){
+    this.trim=ctx.createGain();
+    this.nodes={};
+    let prev=this.trim;
+    for(const k of ['low','mid','hi']){const f=ctx.createBiquadFilter();f.type=EQ_F[k].type;f.frequency.value=EQ_F[k].f;if(k==='mid')f.Q.value=0.7;prev.connect(f);prev=f;this.nodes[k]=f}
+    this.filter=ctx.createBiquadFilter(); this.filter.type='lowpass'; this.filter.frequency.value=22000; this.filter.Q.value=0.707;
+    prev.connect(this.filter);
+    this.fader=ctx.createGain(); this.filter.connect(this.fader);
+    this.xfg=ctx.createGain(); this.fader.connect(this.xfg); this.xfg.connect(masterGain);
+    this.an=ctx.createAnalyser(); this.an.fftSize=1024; this.fader.connect(this.an); this.anBuf=new Float32Array(this.an.fftSize);
+    this.applyTrim(); this.applyEq(); this.applyFilter(); this.applyVol();
+  }
+  /* ---- tiempo ---- */
+  eff(){return this.rate*this.bend}
+  pos(){
+    if(!this.playing) return this.pausedPos;
+    const p=this.startPos+Math.max(0,ctx.currentTime-this.startCtx)*this.eff();
+    return this.buffer?Math.min(p,this.buffer.duration):p;
+  }
+  audible(){return this.playing&&ctx&&ctx.currentTime>=this.startCtx-0.002}
+  beatAt(t){const B=this.beats,N=B.length;if(N<2)return 0;
+    if(t<=B[0])return (t-B[0])/(B[1]-B[0]);
+    if(t>=B[N-1])return N-1+(t-B[N-1])/(B[N-1]-B[N-2]);
+    let lo=0,hi=N-1;while(hi-lo>1){const m=(lo+hi)>>1;if(B[m]<=t)lo=m;else hi=m}
+    return lo+(t-B[lo])/(B[lo+1]-B[lo]);}
+  timeOfBeat(b){const B=this.beats,N=B.length;if(N<2)return 0;
+    if(b<=0)return B[0]+b*(B[1]-B[0]);
+    if(b>=N-1)return B[N-1]+(b-N+1)*(B[N-1]-B[N-2]);
+    const i=Math.floor(b);return B[i]+(b-i)*(B[i+1]-B[i]);}
+  periodAt(t){const N=this.beats.length;if(N<2)return 0.5;const i=clamp(Math.floor(this.beatAt(t)),0,N-2);return this.beats[i+1]-this.beats[i]}
+  bpmAt(t){return 60/this.periodAt(t)}
+  nominalBpm(){const B=this.beats,N=B.length;if(N<2)return 0;const d=[];for(let i=1;i<N;i++)d.push(B[i]-B[i-1]);d.sort((a,b)=>a-b);return 60/d[d.length>>1]}
+  barBeat(b){return mod(Math.floor(b+1e-6)-this.downIdx,4)}
+  /* ---- transporte ---- */
+  _start(when,at){
+    this._kill();
+    if(at<0){when+=-at/this.eff();at=0}
+    if(at>=this.buffer.duration){this.pausedPos=this.buffer.duration;this.playing=false;this.updPlay();return}
+    const s=ctx.createBufferSource(); s.buffer=this.buffer; s.playbackRate.value=this.eff(); s.connect(this.trim);
+    s.start(when,at); this.fresh=false; this.src=s; this.startCtx=when; this.startPos=at; this.playing=true;
+    s.onended=()=>{ if(this.src===s){ this.src=null; this.playing=false; this.pausedPos=this.buffer.duration; this.updPlay(); } };
+    this.updPlay();
+  }
+  _kill(){ if(this.src){ const s=this.src; this.src=null; s.onended=null; try{s.stop()}catch(e){} s.disconnect(); } }
+  pause(){ if(!this.playing)return; this.pausedPos=this.pos(); this._kill(); this.playing=false; this.updPlay(); }
+  togglePlay(){ audio(); if(!this.ready)return; if(this.playing){this.pause();return} startDeck(this,$('#quant').value) }
+  cueBtn(){
+    if(!this.ready)return; audio();
+    if(this.playing){ this.pause(); this.pausedPos=this.cue; }
+    else{ let p=this.pausedPos; if($('#quant').value!=='off'&&this.beats.length>1) p=this.timeOfBeat(Math.round(this.beatAt(p))); this.cue=clamp(p,0,this.buffer.duration); this.pausedPos=this.cue; }
+    this.updPlay();
+  }
+  seek(p,keepPhase){
+    if(!this.ready)return; p=clamp(p,0,this.buffer.duration-0.01);
+    if(this.playing){ this._start(ctx.currentTime,p); if(keepPhase&&this.sync){const m=other(this); if(m.audible()) this.alignTo(m)} }
+    else this.pausedPos=p;
+  }
+  jump(k){ if(!this.ready)return; const p=this.pos(); this.seek(this.timeOfBeat(this.beatAt(p)+k),false) }
+  setRate(r,updateSlider=true){
+    r=clamp(r,0.5,2);
+    if(this.playing&&this.src){ const p=this.pos(), now=ctx.currentTime; if(now>=this.startCtx){this.startPos=p;this.startCtx=now} this.rate=r; this.src.playbackRate.setValueAtTime(this.eff(),Math.max(now,0)); }
+    else this.rate=r;
+    if(updateSlider) this.syncSlider();
+  }
+  setBend(b){
+    if(this.playing&&this.src){ const p=this.pos(), now=ctx.currentTime; if(now>=this.startCtx){this.startPos=p;this.startCtx=now} this.bend=b; this.src.playbackRate.setValueAtTime(this.eff(),now); }
+    else this.bend=b;
+  }
+  syncSlider(){
+    const need=Math.abs(this.rate-1);
+    if(need>this.range+1e-9){ this.range=need<=0.16?0.16:0.5; this.ui.rng.value=String(this.range) }
+    this.ui.tp.value=String((this.rate-1)/this.range);
+  }
+  setSync(on,align){
+    if(on&&!this.ready){toast('Carga una pista en el deck '+this.id+' primero.');return}
+    this.sync=on; this.ui.sync.classList.toggle('on',on);
+    if(!on)return;
+    const m=other(this);
+    if(!m.ready){toast('El deck '+m.id+' no tiene pista para sincronizar.');return}
+    if(m.sync&&m.audible()&&!this.audible()) m.setSync(false);
+    const ref=m.audible()?m.pos():m.pausedPos;
+    const Pm=m.periodAt(ref)/m.eff();
+    const r=this.periodAt(this.pos())/Pm;
+    if(r<0.5||r>2){toast('Los tempos son demasiado distintos (más de ±50%). Revisa el BPM con ×2 / ÷2.');this.setSync(false);return}
+    this.setRate(r);
+    if(Math.abs(r-1)>0.08) toast(`Deck ${this.id} cambia su tempo ${((r-1)*100).toFixed(1)}%: el tono también cambia.`);
+    if(align&&this.audible()&&m.audible()) this.alignTo(m);
+  }
+  alignTo(m){
+    const pm=m.pos(), pf=this.pos();
+    const bm=m.beatAt(pm), bf=this.beatAt(pf);
+    let e=bm-bf; e-=Math.round(e);
+    const wantBar=mod(bm-m.downIdx,4), curBar=mod(bf+e-this.downIdx,4);
+    let d=Math.round(wantBar-curBar); d=mod(d+2,4)-2;
+    const target=bf+e+d;
+    this._start(ctx.currentTime,this.timeOfBeat(target));
+  }
+  /* ---- rejilla ---- */
+  gridOp(op){
+    if(!this.ready)return; const B=this.beats;
+    if(op==='x2'){ const nb=[]; for(let i=0;i<B.length;i++){nb.push(B[i]); if(i+1<B.length) nb.push((B[i]+B[i+1])/2)} this.beats=Float64Array.from(nb); this.downIdx*=2; }
+    else if(op==='half'){ const s=mod(this.downIdx,2), nb=[]; for(let i=s;i<B.length;i+=2) nb.push(B[i]); if(nb.length<4)return; this.beats=Float64Array.from(nb); this.downIdx=(this.downIdx-s)/2; }
+    else if(op==='nudgeL'||op==='nudgeR'){ const dt=op==='nudgeL'?-0.005:0.005; this.beats=this.beats.map(x=>x+dt); }
+    else if(op==='oneL') this.downIdx-=1;
+    else if(op==='oneR') this.downIdx+=1;
+    else if(op==='mark'){ const p=this.pos(), i=Math.round(this.beatAt(p)), dt=p-this.timeOfBeat(i); this.beats=this.beats.map(x=>x+dt); this.downIdx=i; }
+    else if(op==='tap'){ const now=performance.now(); this.tapTimes=this.tapTimes.filter(t=>now-t<3000); this.tapTimes.push(now);
+      if(this.tapTimes.length>=4){ const T=this.tapTimes, bpm=60000*(T.length-1)/(T[T.length-1]-T[0]); this.setUniform(Math.round(bpm*10)/10); } else toast('Sigue tocando Tap al ritmo ('+this.tapTimes.length+'/4)'); return; }
+    this.afterGrid();
+  }
+  setUniform(bpm){
+    if(!this.ready)return;
+    const anchor=this.timeOfBeat(this.downIdx), per=60/bpm, dur=this.buffer.duration;
+    const k0=Math.ceil((0-anchor)/per), k1=Math.floor((dur-anchor)/per), nb=[];
+    for(let k=k0;k<=k1;k++) nb.push(anchor+k*per);
+    this.beats=Float64Array.from(nb); this.downIdx=-k0; this.mode='const'; this.afterGrid();
+  }
+  afterGrid(){
+    cacheSet(this.key,{v:2,mode:this.mode,downIdx:this.downIdx,beats:Array.from(this.beats,x=>Math.round(x*1e4)/1e4)});
+    this.showBpm(); renderLib(); renderCrate();
+    if(this.sync){const m=other(this); if(m.ready) this.setSync(true,true)}
+  }
+  showBpm(){
+    const nb=this.nominalBpm(); this.ui.bpmIn.value=nb?nb.toFixed(2):'';
+    this.ui.mode.textContent=this.mode==='var'?'tempo variable':'tempo constante';
+    this.ui.mode.className='chip mode '+(this.mode==='var'?'var':'const');
+  }
+  /* ---- mezclador ---- */
+  applyTrim(){ if(this.trim) this.trim.gain.setTargetAtTime(Math.pow(10,this.trimDb/20),ctx.currentTime,0.02) }
+  applyEq(){ if(!this.nodes)return; for(const k of ['low','mid','hi']){ const v=this.eq[k]; const db=v<=-0.99?-40:(v<0?v*26:v*6); this.nodes[k].gain.setTargetAtTime(db,ctx.currentTime,0.015) } }
+  applyFilter(){ if(!this.filter)return; const v=this.flt, f=this.filter, t=ctx.currentTime;
+    if(Math.abs(v)<0.02){ f.type='lowpass'; f.frequency.setTargetAtTime(22000,t,0.02); f.Q.setTargetAtTime(0.707,t,0.02) }
+    else if(v<0){ f.type='lowpass'; f.frequency.setTargetAtTime(20000*Math.pow(200/20000,-v),t,0.02); f.Q.setTargetAtTime(1.2,t,0.02) }
+    else { f.type='highpass'; f.frequency.setTargetAtTime(20*Math.pow(6000/20,v),t,0.02); f.Q.setTargetAtTime(1.2,t,0.02) } }
+  applyVol(){ if(this.fader) this.fader.gain.setTargetAtTime(this.vol*this.vol,ctx.currentTime,0.01) }
+  /* ---- carga ---- */
+  setTrack(name,key,buf,pk,an){
+    this.pause(); this._kill();
+    this.name=name; this.key=key; this.buffer=buf; this.peaks=pk;
+    this.beats=Float64Array.from(an.beats); this.downIdx=an.downIdx; this.mode=an.mode;
+    this.ready=this.beats.length>=2;
+    this.rate=1; this.bend=1; this.sync=false; this.ui.sync.classList.remove('on'); this.syncSlider();
+    this.cue=Math.max(0,this.timeOfBeat(this.downIdx)); this.pausedPos=this.cue; this.fresh=true;
+    // ganancia automática hacia -16 dBFS RMS
+    const db=clamp(-16-20*Math.log10(Math.max(1e-5,pk.rms)),-12,12);
+    this.trimDb=Math.round(db*2)/2; $('#trim'+this.id).value=this.trimDb; this.applyTrim();
+    this.ui.name.textContent=name.replace(/\.[^.]+$/,'');
+    this.ui.sub.textContent=`${fmtD(buf.duration)} · ${buf.sampleRate/1000} kHz`;
+    this.showBpm(); this.drawOverview(); this.updPlay(); renderCrate(); renderLib();
+  }
+  busy(on,txt){ this.ui.busy.hidden=!on; if(txt) this.ui.busy.textContent=txt }
+  updPlay(){
+    const b=this.ui.play, armed=this.playing&&ctx&&ctx.currentTime<this.startCtx-0.002;
+    b.classList.toggle('on',this.playing&&!armed); b.classList.toggle('armed',!!armed);
+    b.textContent=this.playing?(armed?'…':'❚❚'):'▶';
+    renderCratePlaying();
+  }
+  /* ---- dibujo ---- */
+  resize(){
+    for(const c of [this.ui.zoom,this.ui.over]){ const w=Math.round(c.clientWidth*DPR()), h=Math.round(c.clientHeight*DPR()); if(c.width!==w||c.height!==h){c.width=w;c.height=h} }
+    this.drawOverview();
+  }
+  drawOverview(){
+    const c=this.ui.over, W=c.width, H=c.height; if(!W||!H)return;
+    const off=document.createElement('canvas'); off.width=W; off.height=H; const g=off.getContext('2d');
+    g.fillStyle='#0b0d10'; g.fillRect(0,0,W,H);
+    if(this.peaks){
+      const {pk,pl,pmax}=this.peaks, N=pk.length, mid=H/2, col=getComputedStyle(this.el).getPropertyValue('--c').trim();
+      for(let x=0;x<W;x++){
+        const i0=Math.floor(x/W*N), i1=Math.max(i0+1,Math.floor((x+1)/W*N)); let a=0,l=0;
+        for(let i=i0;i<i1&&i<N;i++){ if(pk[i]>a)a=pk[i]; if(pl[i]>l)l=pl[i] }
+        const ha=a/pmax*mid*0.95, hl=Math.min(ha,l/pmax*mid*0.95*1.6);
+        g.globalAlpha=0.35; g.fillStyle=col; g.fillRect(x,mid-ha,1,ha*2);
+        g.globalAlpha=1; g.fillRect(x,mid-hl,1,hl*2);
+      }
+      g.globalAlpha=1;
+    }
+    this.ovImg=off;
+  }
+  draw(){
+    // lecturas
+    if(this.ready){
+      const p=this.pos(), dur=this.buffer.duration;
+      this.ui.time.textContent=fmtT(p); this.ui.rem.textContent='-'+fmtT(dur-p);
+      this.ui.bpm.textContent=(this.bpmAt(p)*this.eff()).toFixed(2);
+      const pct=(this.eff()-1)*100; this.ui.pct.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
+      const b=this.beatAt(p), bb=this.barBeat(b), live=this.audible();
+      this.ui.beats.forEach((el,i)=>{ el.classList.toggle('on',live&&i===bb); el.classList.toggle('first',i===0) });
+      if(this.ui.play.classList.contains('armed')&&!(this.playing&&ctx.currentTime<this.startCtx-0.002)) this.updPlay();
+    }
+    // zoom
+    const c=this.ui.zoom, g=this.zg, W=c.width, H=c.height; if(!W)return;
+    g.fillStyle='#0b0d10'; g.fillRect(0,0,W,H);
+    const d=DPR(), mid=H/2;
+    if(this.ready){
+      const p=this.pos(), span=ZOOM_SEC*this.eff(), t0=p-span/2, {pk,pl,pmax}=this.peaks, N=pk.length;
+      const col=getComputedStyle(this.el).getPropertyValue('--c').trim();
+      g.fillStyle=col;
+      for(let x=0;x<W;x++){
+        const ta=t0+x*span/W, i0=Math.floor(ta*PK_RES), i1=Math.max(i0+1,Math.floor((ta+span/W)*PK_RES));
+        if(i1<=0||i0>=N)continue; let a=0,l=0;
+        for(let i=Math.max(0,i0);i<Math.min(i1,N);i++){ if(pk[i]>a)a=pk[i]; if(pl[i]>l)l=pl[i] }
+        const ha=a/pmax*mid*0.92, hl=Math.min(ha,l/pmax*mid*0.92*1.6);
+        g.globalAlpha=0.32; g.fillRect(x,mid-ha,1,ha*2); g.globalAlpha=1; g.fillRect(x,mid-hl,1,hl*2);
+      }
+      g.globalAlpha=1;
+      const b0=Math.ceil(this.beatAt(t0)), b1=Math.floor(this.beatAt(t0+span));
+      for(let b=b0;b<=b1;b++){
+        const x=(this.timeOfBeat(b)-t0)/span*W, down=this.barBeat(b)===0;
+        g.fillStyle=down?'rgba(255,255,255,.85)':'rgba(255,255,255,.28)';
+        g.fillRect(Math.round(x),0,down?2*d:1*d,down?H:H*0.18); if(!down) g.fillRect(Math.round(x),H*0.82,1*d,H*0.18);
+      }
+      // cue
+      const xc=(this.cue-t0)/span*W; if(xc>=0&&xc<=W){ g.fillStyle='#e3c24b'; g.beginPath(); g.moveTo(xc-5*d,0); g.lineTo(xc+5*d,0); g.lineTo(xc,7*d); g.fill(); }
+    }
+    g.fillStyle='#ffffff'; g.fillRect(Math.round(W/2)-d,0,2*d,H);
+    // resumen
+    const oc=this.ui.over, og=this.og, OW=oc.width, OH=oc.height; if(!OW)return;
+    if(this.ovImg) og.drawImage(this.ovImg,0,0); else {og.fillStyle='#0b0d10';og.fillRect(0,0,OW,OH)}
+    if(this.ready){
+      const dur=this.buffer.duration, x=this.pos()/dur*OW;
+      og.fillStyle='rgba(11,13,16,.55)'; og.fillRect(0,0,x,OH);
+      og.fillStyle='#e3c24b'; og.fillRect(Math.round(this.cue/dur*OW),0,1*d,OH);
+      og.fillStyle='#ffffff'; og.fillRect(Math.round(x)-d/2,0,2*d,OH);
+    }
+  }
+}
+const decks=[new Deck('A'),new Deck('B')];
+const other=d=>d===decks[0]?decks[1]:decks[0];
+function masterDeck(){
+  if(!ctx)return null;
+  const p=decks.filter(d=>d.audible()); if(!p.length)return null; if(p.length===1)return p[0];
+  const g=d=>d.vol*(d.id==='A'?Math.cos(xfader*Math.PI/2):Math.sin(xfader*Math.PI/2));
+  return g(p[0])>=g(p[1])?p[0]:p[1];
+}
+
+/* ---- entrada cuantizada ---- */
+function startDeck(d,q){
+  const m=other(d);
+  if(q!=='off'&&m.ready&&m.audible()&&d.beats.length>1){
+    const now=ctx.currentTime, lead=0.12;
+    const pmNow=m.pos(), bm=m.beatAt(pmNow+lead*m.eff());
+    let cb=Math.round(d.beatAt(d.pausedPos));
+    if(q==='bar') cb=d.downIdx+Math.round((cb-d.downIdx)/4)*4;
+    let T=Math.ceil(bm);
+    if(q==='bar'){ const want=mod(cb-d.downIdx,4); let guard=0; while(mod(T-m.downIdx,4)!==want&&guard++<8) T++; }
+    const dt=(m.timeOfBeat(T)-pmNow)/m.eff();
+    if(d.sync){ const Pm=m.periodAt(m.timeOfBeat(T))/m.eff(); const r=d.periodAt(d.timeOfBeat(cb))/Pm; if(r>=0.5&&r<=2) d.setRate(r) }
+    d._start(now+dt,d.timeOfBeat(cb));
+  } else d._start(ctx.currentTime,d.pausedPos);
+}
+
+/* ---- seguimiento continuo (SYNC) ---- */
+let lastSync=0;
+function syncStep(){
+  if(!ctx)return; const now=ctx.currentTime; if(now-lastSync<0.05)return; lastSync=now;
+  const mst=masterDeck();
+  for(const f of decks){
+    if(!f.sync||!f.audible()||f===mst||f.bend!==1)continue;
+    const m=other(f); if(!m.audible())continue;
+    const pm=m.pos(), pf=f.pos();
+    const PmReal=m.periodAt(pm)/m.eff(), Pf=f.periodAt(pf);
+    let e=m.beatAt(pm)-f.beatAt(pf); e-=Math.round(e);
+    if(Math.abs(e)>0.25){ f.alignTo(m); continue }
+    let r=(Pf/PmReal)*(1+clamp(e*0.15,-0.03,0.03));
+    if(Math.abs(r-f.rate)>0.00005) f.setRate(r,true);
+  }
+}
+
+/* ---- transición automática ---- */
+let am=null;
+function autoMix(){
+  audio();
+  const from=masterDeck();
+  if(!from){toast('Pon a sonar un deck primero.');return}
+  const to=other(from);
+  if(!to.ready){toast('Carga una pista en el deck '+to.id+'.');return}
+  if(to.playing){toast('El deck '+to.id+' ya está sonando: usa el crossfader.');return}
+  if(to.vol<0.5){to.vol=0.85;$('#vol'+to.id).value=to.vol;to.applyVol()}
+  to.setSync(true,false);
+  const swap=$('#bassSwap').checked, saveLowTo=to.eq.low, saveLowFrom=from.eq.low;
+  if(swap) setEq(to,'low',-1);
+  startDeck(to,'bar');
+  const bars=+$('#mxBars').value, Pm=from.periodAt(from.pos())/from.eff();
+  am={from,to,when:to.startCtx,dur:bars*4*Pm,x0:xfader,x1:to.id==='A'?0:1,swap,swapped:false,saveLowTo,saveLowFrom};
+  toast(`Transición ${from.id} → ${to.id}: ${bars} compases (${(am.dur).toFixed(1)} s).`);
+}
+function autoMixStep(){
+  if(!am)return; const t=ctx.currentTime-am.when; if(t<0)return;
+  const pr=clamp(t/am.dur,0,1);
+  setXF(am.x0+(am.x1-am.x0)*pr,true);
+  if(am.swap&&!am.swapped&&pr>=0.5){ setEq(am.to,'low',am.saveLowTo); setEq(am.from,'low',-1); am.swapped=true }
+  if(pr>=1){ const f=am.from; f.pause(); if(am.swap) setEq(f,'low',am.saveLowFrom); f.setSync(false); am=null; }
+}
+
+/* ---- controles del mezclador ---- */
+function applyXF(){ if(!ctx)return; const a=Math.cos(xfader*Math.PI/2), b=Math.sin(xfader*Math.PI/2); decks[0].xfg.gain.setTargetAtTime(a,ctx.currentTime,0.008); decks[1].xfg.gain.setTargetAtTime(b,ctx.currentTime,0.008) }
+function setXF(v,fromAuto){ xfader=v; if(fromAuto) $('#xf').value=v; applyXF() }
+function setEq(d,k,v){ d.eq[k]=v; $('#'+k+d.id).value=v; if(ctx) d.applyEq() }
+$('#xf').addEventListener('input',e=>{ if(am){am=null;toast('Transición automática cancelada: crossfader en manual.')} setXF(+e.target.value) });
+decks.forEach(d=>{
+  const id=d.id;
+  const bind=(sel,fn,def)=>{const el=$(sel);el.addEventListener('input',()=>fn(+el.value));el.addEventListener('dblclick',()=>{el.value=def;fn(def)})};
+  bind('#trim'+id,v=>{d.trimDb=v;if(ctx)d.applyTrim()},0);
+  for(const k of ['hi','mid','low']) bind('#'+k+id,v=>{d.eq[k]=v;if(ctx)d.applyEq()},0);
+  bind('#flt'+id,v=>{d.flt=v;if(ctx)d.applyFilter()},0);
+  bind('#vol'+id,v=>{d.vol=v;if(ctx)d.applyVol()},0.85);
+});
+$('#mv').addEventListener('input',e=>{const v=+e.target.value;$('#mvTxt').textContent=Math.round(v*100)+'%';if(masterGain)masterGain.gain.setTargetAtTime(v,ctx.currentTime,0.02)});
+$('#btnMix').onclick=autoMix;
+
+/* ---- bucle de dibujo ---- */
+function frame(){
+  if(ctx){ syncStep(); autoMixStep(); }
+  if(MODE==='files'&&ctx) fileAutoStep();
+  decks.forEach(d=>d.draw());
+  // vúmetros
+  decks.forEach(d=>{ let pk=0; if(d.an&&d.playing){ d.an.getFloatTimeDomainData(d.anBuf); for(const x of d.anBuf){const a=Math.abs(x);if(a>pk)pk=a} } const db=pk>0?20*Math.log10(pk):-60; $('#vu'+d.id).style.height=clamp((db+48)/48*100,0,100)+'%' });
+  // estado
+  const m=masterDeck();
+  $('#stMaster').textContent=m?m.id:'—';
+  $('#stBpm').textContent=m?(m.bpmAt(m.pos())*m.eff()).toFixed(2):'—';
+  const sa=$('#stAudio'); sa.textContent=!ctx?'inactivo':ctx.state==='running'?`activo · ${Math.round((ctx.baseLatency||0)*1000)} ms`:ctx.state; sa.className=ctx&&ctx.state==='running'?'ok':'';
+  const [A,B]=decks;
+  if(A.audible()&&B.audible()){
+    const ref=m||A, o=other(ref); let e=ref.beatAt(ref.pos())-o.beatAt(o.pos()); e-=Math.round(e);
+    const ms=e*ref.periodAt(ref.pos())/ref.eff()*1000; const t=$('#phaseTxt');
+    t.textContent=(ms>=0?'+':'')+ms.toFixed(0)+' ms'; t.className=Math.abs(ms)<15?'ok':Math.abs(ms)<40?'warn':'bad';
+    $('#phaseDot').style.left=(50+clamp(e,-0.5,0.5)*100)+'%';
+  } else { $('#phaseTxt').textContent='—'; $('#phaseTxt').className=''; $('#phaseDot').style.left='50%' }
+  const from=m, to=from?other(from):null;
+  $('#btnMix').textContent=am?`Mezclando ${am.from.id} → ${am.to.id}…`:(from?`Mezclar ${from.id} → ${to.id}`:'Mezclar A → B');
+  $('#btnMix').disabled=!!am;
+  requestAnimationFrame(frame);
+}
+
+/* ============ biblioteca local ============ */
+const AUDIO_EXT=/\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|webm|aif|aiff)$/i;
+const isAudio=f=>AUDIO_EXT.test(f.name)||(f.type||'').startsWith('audio/');
+const fileKey=f=>f.name+'|'+f.size;
+const lib=new Map(); // key -> File
+const libInfo=new Map(); // key -> {dur}
+function cacheGet(k){const c=store.get('an.'+k,null);return c&&c.v===2?c:null}
+function cacheSet(k,v){if(k)store.set('an.'+k,v)}
+function addLibFiles(files){
+  let n=0; for(const f of files){ if(!isAudio(f))continue; const k=fileKey(f); if(!lib.has(k)){lib.set(k,f);n++} }
+  renderLib(); renderCrate(); return n;
+}
+async function decodeFile(file){ const ab=await file.arrayBuffer(); return await audio().decodeAudioData(ab) }
+async function loadFile(d,file){
+  audio();
+  if(d.playing){toast(`El deck ${d.id} está sonando: detenlo antes de cargar otra pista.`);return}
+  d.busy(true,'Leyendo '+file.name+'…');
+  try{
+    const buf=await decodeFile(file), key=fileKey(file);
+    libInfo.set(key,{dur:buf.duration});
+    const pk=computePeaks(buf);
+    let an=cacheGet(key);
+    if(!an){ d.busy(true,'Analizando BPM…'); await new Promise(r=>setTimeout(r,20)); an=await analyzeBuffer(buf); cacheSet(key,an) }
+    d.setTrack(file.name,key,buf,pk,an);
+  }catch(e){ toast('No se pudo leer '+file.name+': '+(e&&e.message||'formato no compatible')) }
+  finally{ d.busy(false) }
+}
+let analyzing=false;
+async function analyzeAll(){
+  if(analyzing)return; analyzing=true; const btn=$('#anAll'); let i=0; const keys=[...lib.keys()].filter(k=>!cacheGet(k));
+  try{
+    for(const k of keys){ i++; btn.textContent=`Analizando ${i}/${keys.length}…`;
+      try{ const buf=await decodeFile(lib.get(k)); libInfo.set(k,{dur:buf.duration}); cacheSet(k,await analyzeBuffer(buf)); renderLib(); }catch(e){}
+    }
+  } finally { analyzing=false; btn.textContent='Analizar BPM de todos'; renderLib(); renderCrate(); toast(keys.length?`${keys.length} archivos analizados.`:'Todos los archivos ya estaban analizados.') }
+}
+function anBpm(k){ const c=cacheGet(k); if(!c||c.beats.length<2)return null; const B=c.beats, dd=[]; for(let i=1;i<B.length;i++)dd.push(B[i]-B[i-1]); dd.sort((a,b)=>a-b); return {bpm:60/dd[dd.length>>1],mode:c.mode} }
+function masterBpm(){ const m=masterDeck(); if(m)return m.bpmAt(m.pos())*m.eff(); return null }
+function renderLib(){
+  const tb=$('#libBody'), q=norm($('#libFilter').value);
+  $('#libN').textContent=lib.size?`(${lib.size})`:'';
+  if(!lib.size){ tb.innerHTML=`<tr><td colspan="5" class="empty">Elige la carpeta donde guardas tus canciones (MP3, WAV, M4A, FLAC). Los archivos no se copian ni se suben: se leen desde tu PC.</td></tr>`; return }
+  const mb=masterBpm();
+  const rows=[...lib.entries()].filter(([k,f])=>!q||norm(f.name).includes(q)).sort((a,b)=>a[1].name.localeCompare(b[1].name,'es'));
+  tb.innerHTML=rows.map(([k,f])=>{
+    const a=anBpm(k), inf=libInfo.get(k), compat=a&&mb&&Math.abs(a.bpm/mb-1)<=0.06;
+    return `<tr class="${compat?'compat':''}" data-k="${esc(k)}"><td><div class="ttl" title="${esc(f.name)}">${esc(f.name.replace(/\.[^.]+$/,''))}</div></td>
+      <td class="n">${inf?fmtD(inf.dur):'—'}</td><td class="n bpm">${a?a.bpm.toFixed(2):'—'}</td>
+      <td>${a?`<span class="chip ${a.mode}">${a.mode==='var'?'variable':'constante'}</span>`:''}</td>
+      <td style="white-space:nowrap"><button class="btn sm bA" data-load="A">A</button> <button class="btn sm bB" data-load="B">B</button></td></tr>`}).join('')||`<tr><td colspan="5" class="empty">Sin coincidencias.</td></tr>`;
+}
+$('#libBody').addEventListener('click',e=>{const b=e.target.closest('[data-load]');if(!b)return;const k=b.closest('tr').dataset.k;const f=lib.get(k);if(f)loadFile(decks[b.dataset.load==='A'?0:1],f)});
+$('#pickDir').addEventListener('change',e=>{const n=addLibFiles(Array.from(e.target.files));toast(`${n} archivos de audio añadidos.`);e.target.value='';autoLink(true)});
+$('#pickFiles').addEventListener('change',e=>{const n=addLibFiles(Array.from(e.target.files));toast(`${n} archivos de audio añadidos.`);e.target.value='';autoLink(true)});
+$('#libFilter').addEventListener('input',renderLib);
+$('#anAll').onclick=analyzeAll;
+
+/* ============ lista de mezcla (YouTube ↔ archivo) ============ */
+let crate=store.get('crate',[]);
+crate.forEach(it=>{ it.played=false; it.err=false });
+const saveCrate=()=>{ store.set('crate',crate); if(typeof cloudSoon==='function') cloudSoon() };
+function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')}
+const STOP=new Set(['official','oficial','video','videoclip','audio','lyric','lyrics','letra','hd','hq','4k','remastered','remasterizado','remaster','live','en','vivo','ft','feat','the','el','la','los','las','de','del','y','con','mp3','version','music','musical','topic','clip','visualizer','vevo']);
+function toks(s){ s=norm(s).replace(/\.[a-z0-9]{2,4}$/,'').replace(/\[[^\]]*\]|\([^)]*\)/g,' '); return new Set(s.split(/[^a-z0-9]+/).filter(t=>t.length>1&&!STOP.has(t))) }
+function sim(a,b){ const A=toks(a),B=toks(b); if(!A.size||!B.size)return 0; let i=0; for(const t of A) if(B.has(t)) i++; return i/Math.min(A.size,B.size)*(0.6)+i/new Set([...A,...B]).size*0.4 }
+function autoLink(quiet){
+  let n=0; const files=[...lib.entries()];
+  for(const it of crate){ if(it.fileKey&&lib.has(it.fileKey))continue;
+    if(it.fileName){ const hit=files.find(([k,f])=>f.name===it.fileName); if(hit){it.fileKey=hit[0];n++;continue} }
+    let best=null,bs=0; for(const [k,f] of files){ const s=sim(it.title,f.name); if(s>bs){bs=s;best=[k,f]} }
+    if(best&&bs>=0.55){ it.fileKey=best[0]; it.fileName=best[1].name; n++ }
+  }
+  saveCrate(); renderCrate();
+  if(!quiet||n) toast(n?`${n} canciones vinculadas con su archivo.`:'No se encontraron archivos con nombre parecido. Vincúlalos a mano en la columna “Archivo propio”.');
+}
+$('#autoLink').onclick=()=>{ if(!lib.size){toast('Primero elige tu carpeta de música en “Mis archivos”.');return} autoLink(false) };
+let MODE=store.get('mode','yt');
+function setMode(m){ MODE=m; store.set('mode',m); document.body.classList.toggle('mode-yt',m==='yt'); document.body.classList.toggle('mode-files',m==='files'); $$('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===m)); renderCrate() }
+$$('.seg button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+
+function itemBpm(it){ const a=it.fileKey&&lib.has(it.fileKey)?anBpm(it.fileKey):null; return a?{bpm:a.bpm,src:'file'}:(it.bpm?{bpm:it.bpm,src:'tap'}:null) }
+function refBpm(){ if(MODE==='files') return masterBpm(); const m=typeof ytMaster==='function'?ytMaster():null; return m&&m.item&&m.item.bpm?m.item.bpm:null }
+/* ---- cantante y género ---- */
+const GENRES=['Salsa','Balada','Bolero','Merengue','Bachata','Reggaetón','Gaita','Vallenato','Cumbia','Pop','Rock','Tropical','Otro'];
+const ARTIST_GENRE={'gilberto santa rosa':'Salsa','gilberto santarosa':'Salsa','marc anthony':'Salsa','victor manuelle':'Salsa','victor manuelle':'Salsa','oscar d leon':'Salsa','oscar de leon':'Salsa','el gran combo':'Salsa','tito nieves':'Salsa','jerry rivera':'Salsa','frankie ruiz':'Salsa','eddie santiago':'Salsa','willie colon':'Salsa','ruben blades':'Salsa','hector lavoe':'Salsa','celia cruz':'Salsa','grupo niche':'Salsa','guayacan orquesta':'Salsa','tito rojas':'Salsa','luis enrique':'Salsa','manolo lezcano':'Salsa','pedro arroyo':'Salsa','maelo ruiz':'Salsa','lalo rodriguez':'Salsa','tony vega':'Salsa','johnny rivera':'Salsa','paquito guzman':'Salsa','adalberto santiago':'Salsa','anthony cruz':'Salsa','charlie cruz':'Salsa','rey ruiz':'Salsa','viti ruiz':'Salsa','andy montanez':'Salsa','ismael miranda':'Salsa','cheo feliciano':'Salsa','ismael rivera':'Salsa','nino segarra':'Salsa','luisito carrion':'Salsa','hildemaro':'Salsa','los adolescentes':'Salsa','frankie negron':'Salsa','david pabon':'Salsa','domingo quinones':'Salsa','michael stuart':'Salsa','la india':'Salsa','orquesta la solucion':'Salsa','sonora ponceña':'Salsa','sonora poncena':'Salsa','dimension latina':'Salsa','billo':'Salsa','billos caracas boys':'Salsa','roberto roena':'Salsa','bobby cruz':'Salsa','richie ray':'Salsa','gilberto santa rosa - topic':'Salsa','grupo mania':'Merengue','elvis crespo':'Merengue','milly quezada':'Merengue','olga tanon':'Merengue','sergio vargas':'Merengue','los hermanos rosario':'Merengue','fernando villalona':'Merengue','eddy herrera':'Merengue','johnny ventura':'Merengue','toño rosario':'Merengue','tono rosario':'Merengue','kinito mendez':'Merengue','manuel mijares':'Balada','mijares':'Balada','emmanuel':'Balada','rocio durcal':'Balada','juan gabriel':'Balada','julio iglesias':'Balada','raphael':'Balada','braulio':'Balada','roberto carlos':'Balada','yuri':'Balada','pimpinela':'Balada','ana gabriel':'Balada','jose luis rodriguez':'Balada','guillermo davila':'Balada','ricardo arjona':'Balada','luis fonsi':'Balada','david bisbal':'Balada','alejandro fernandez':'Balada','josé josé':'Balada','jose jose':'Balada','sandro':'Balada','nino bravo':'Balada','dyango':'Balada','rocio jurado':'Balada','lupita dalessio':'Balada','marisela':'Balada','paloma san basilio':'Balada','los panchos':'Bolero','trio los panchos':'Bolero','lucho gatica':'Bolero','felipe pirela':'Bolero','armando manzanero':'Bolero','javier solis':'Bolero','agustin lara':'Bolero','olga guillot':'Bolero','maria martha serra lima':'Bolero','tito rodriguez':'Bolero','daniel santos':'Bolero','neguito borjas':'Gaita','betulio medina':'Gaita','los chiquinquirenos':'Gaita','rincon morales':'Gaita','koquimba':'Gaita','gaiteros de pillopo':'Gaita','saladillo':'Gaita',
+ 'luis miguel':'Balada','sin bandera':'Balada','kany garcia':'Balada','pablo alboran':'Balada','alejandro sanz':'Balada','cristian castro':'Balada','ricardo montaner':'Balada','franco de vita':'Balada','jose jose':'Balada','camilo sesto':'Balada','marco antonio solis':'Balada','laura pausini':'Balada','reik':'Balada','jesse & joy':'Balada','ricardo arjona':'Balada','chayanne':'Balada',
+ 'karol g':'Reggaetón','bad bunny':'Reggaetón','daddy yankee':'Reggaetón','maluma':'Reggaetón','j balvin':'Reggaetón','ozuna':'Reggaetón','feid':'Reggaetón',
+ 'guaco':'Gaita','maracaibo 15':'Gaita','cardenales del exito':'Gaita','los cardenales del exito':'Gaita','ricardo aguirre':'Gaita','gran coquivacoa':'Gaita','estrellas del zulia':'Gaita',
+ 'juan luis guerra':'Merengue','wilfrido vargas':'Merengue','romeo santos':'Bachata','aventura':'Bachata','prince royce':'Bachata','carlos vives':'Vallenato','silvestre dangond':'Vallenato'};
+const TITLE_GENRE=[[/\bbolero/i,'Bolero'],[/\bbalada/i,'Balada'],[/\bsalsa/i,'Salsa'],[/\bgaita/i,'Gaita'],[/\bmerengue/i,'Merengue'],[/\bbachata/i,'Bachata'],[/regg?a?e?t[oó]n|regueton/i,'Reggaetón'],[/\bvallenato/i,'Vallenato'],[/\bcumbia/i,'Cumbia']];
+let artistGenre=store.get('artistGenre',{});
+function cleanArtist(a){ a=String(a||'').replace(/\s*-\s*topic$/i,'').replace(/vevo$/i,'').replace(/\s*(oficial|official|music|tv|channel|canal oficial)$/i,'').trim(); if(!/\s/.test(a)&&/[a-z][A-Z]/.test(a)) a=a.replace(/([a-z])([A-Z])/g,'$1 $2'); return a }
+function guessArtist(title,author){ const m=String(title||'').match(/^\s*([^-–|]{2,40}?)\s+[-–]\s+/); const au=cleanArtist(author); if(m&&(!au||/records|music|latin|sony|universal|warner|discos|topic/i.test(author||'')||norm(m[1]).includes(norm(au).split(' ')[0]))) return m[1].trim(); return au||(m?m[1].trim():'') }
+function listGenre(name){ const n=norm(name); if(/salsa/.test(n))return 'Salsa'; if(/gaita/.test(n))return 'Gaita'; if(/bolero/.test(n))return 'Bolero'; if(/romant|balada/.test(n))return 'Balada'; if(/merengue/.test(n))return 'Merengue'; if(/bachata/.test(n))return 'Bachata'; if(/regg?ae?ton|karol g|urbano/.test(n))return 'Reggaetón'; if(/vallenato/.test(n))return 'Vallenato'; return '' }
+function guessGenre(it){ for(const [re,g] of TITLE_GENRE) if(re.test(it.title||'')) return g; const a=norm(it.artist||''); if(a&&artistGenre[a]) return artistGenre[a]; for(const [k,g] of Object.entries(ARTIST_GENRE)) if(a&&(a===k||a.includes(k))) return g; for(const l of (it.lists||[])){ const g=listGenre(l); if(g) return g } return '' }
+function fillMeta(it,author){ if(!it.artist&&(author||it.title)) it.artist=guessArtist(it.title,author); if(!it.genre) it.genre=guessGenre(it) }
+let metaBusy=false;
+async function backfillMeta(){
+  if(metaBusy)return; metaBusy=true;
+  try{ for(const it of crate){ if(it.artist!==undefined&&it.artist!==null&&it.metaOk)continue;
+      try{ const r=await fetch('https://www.youtube.com/oembed?format=json&url='+encodeURIComponent('https://www.youtube.com/watch?v='+it.vid)); if(r.ok){ const j=await r.json(); if(j.title&&(it.title===it.vid||!it.title)) it.title=j.title; it.artist=''; fillMeta(it,j.author_name); } else { fillMeta(it,'') } }catch(e){ fillMeta(it,'') }
+      it.metaOk=true; saveCrate(); renderCrateSoon(); await sleep(120) } }
+  finally{ metaBusy=false }
+}
+let rcT=0; function renderCrateSoon(){ clearTimeout(rcT); rcT=setTimeout(renderCrate,300) }
+let crGenreFilter=store.get('crGenre','');
+function crateView(){
+  const mode=$('#crSort').value, q=norm($('#crFind').value).trim();
+  let rows=crate.map((it,i)=>({it,i}));
+  if(crGenreFilter) rows=rows.filter(r=>(r.it.genre||'Sin género')===crGenreFilter);
+  const lf=$('#crList').value; if(lf) rows=rows.filter(r=>(r.it.lists||[]).includes(lf));
+  if(q) rows=rows.filter(r=>norm(r.it.title+' '+(r.it.artist||'')).includes(q));
+  const cmp=(a,b)=>String(a||'￿').localeCompare(String(b||'￿'),'es',{sensitivity:'base'});
+  if(mode==='genre') rows.sort((a,b)=>cmp(a.it.genre,b.it.genre)||cmp(a.it.artist,b.it.artist)||cmp(a.it.title,b.it.title));
+  else if(mode==='artist') rows.sort((a,b)=>cmp(a.it.artist,b.it.artist)||cmp(a.it.title,b.it.title));
+  else if(mode==='list') rows.sort((a,b)=>cmp((a.it.lists||[])[0],(b.it.lists||[])[0])||cmp(a.it.artist,b.it.artist)||cmp(a.it.title,b.it.title));
+  else if(mode==='title') rows.sort((a,b)=>cmp(a.it.title,b.it.title));
+  else if(mode==='bpm') rows.sort((a,b)=>((itemBpm(a.it)||{bpm:999}).bpm)-((itemBpm(b.it)||{bpm:999}).bpm));
+  return {rows,mode};
+}
+function renderGenreChips(){
+  const cnt={}; for(const it of crate){ const g=it.genre||'Sin género'; cnt[g]=(cnt[g]||0)+1 }
+  const keys=Object.keys(cnt).sort((a,b)=>a.localeCompare(b,'es'));
+  if(crGenreFilter&&!cnt[crGenreFilter]) crGenreFilter='';
+  $('#crGenres').innerHTML=crate.length?[`<button data-g="" class="${crGenreFilter?'':'on'}">Todos (${crate.length})</button>`].concat(keys.map(g=>`<button data-g="${esc(g)}" class="${crGenreFilter===g?'on':''}">${esc(g)} (${cnt[g]})</button>`)).join(''):'';
+}
+function renderCrate(){
+  const tb=$('#crateBody'); $('#crateN').textContent=crate.length?`(${crate.length})`:'';
+  renderGenreChips();
+  const {rows,mode}=crateView();
+  $('#crApply').hidden=!(mode!=='play'||crGenreFilter||$('#crList').value||$('#crFind').value.trim());
+  renderListOptions();
+  if(!crate.length){ tb.innerHTML=`<tr><td colspan="9" class="empty">La lista está vacía. Abre una canción de YouTube en la vista previa y pulsa “Añadir a la lista”.</td></tr>`; return }
+  if(!rows.length){ tb.innerHTML=`<tr><td colspan="9" class="empty">Ninguna canción coincide con el filtro.</td></tr>`; return }
+  const mb=refBpm(), files=[...lib.entries()], up=MODE==='yt'?ytUpNextItem():null;
+  const gOpts=g=>`<option value="">—</option>`+GENRES.map(x=>`<option${x===g?' selected':''}>${x}</option>`).join('')+(g&&!GENRES.includes(g)?`<option selected>${esc(g)}</option>`:'');
+  const groupKey=it=>mode==='genre'?(it.genre||'Sin género'):mode==='artist'?(it.artist||'Sin cantante'):mode==='list'?((it.lists||[])[0]||'Añadidas a mano'):null;
+  const counts={}; if(mode==='genre'||mode==='artist'||mode==='list') for(const r of rows){const k=groupKey(r.it);counts[k]=(counts[k]||0)+1}
+  let last=null, html='';
+  for(const {it,i} of rows){
+    const gk=groupKey(it);
+    if(gk!==null&&gk!==last){ html+=`<tr class="grp"><td colspan="9">${esc(gk)}<span>${counts[gk]} ${counts[gk]===1?'canción':'canciones'}</span></td></tr>`; last=gk }
+    const bb=itemBpm(it), compat=bb&&mb&&Math.abs(bb.bpm/mb-1)<=0.06;
+    let opts='';
+    if(MODE==='files'){
+      opts=`<option value="">— sin archivo —</option>`;
+      if(it.fileKey&&!lib.has(it.fileKey)) opts+=`<option value="${esc(it.fileKey)}" selected>${esc(it.fileName||'archivo')} (no cargado)</option>`;
+      const ranked=files.map(([k,f])=>[k,f,sim(it.title,f.name)]).sort((x,y)=>y[2]-x[2]||x[1].name.localeCompare(y[1].name,'es'));
+      for(const [k,f] of ranked) opts+=`<option value="${esc(k)}"${k===it.fileKey?' selected':''}>${esc(f.name)}</option>`;
+    }
+    const io=(it.cueIn?fmtD(it.cueIn):'0:00')+(it.cueOut!=null?' → '+fmtD(it.cueOut):'');
+    html+=`<tr data-i="${i}" class="${compat?'compat':''} ${it.played?'played':''} ${it===up?'upnext-row':''}" title="${it.err?'No se pudo cargar en el último intento':''}">
+      <td class="n">${i+1}</td>
+      <td><div class="ttl" title="${esc(it.title)}"><a href="#" data-prev style="color:inherit" title="Escuchar en la vista previa">${esc(it.title||it.vid)}</a></div></td>
+      <td><input class="cell-in" data-artist value="${esc(it.artist||'')}" placeholder="—" aria-label="Cantante"></td>
+      <td><select class="gen" data-genre aria-label="Género">${gOpts(it.genre||'')}</select></td>
+      <td class="n bpm" title="${bb?(bb.src==='file'?'BPM analizado del archivo':'BPM por Tap'):''}">${bb?bb.bpm.toFixed(bb.src==='file'?2:1):'—'}</td>
+      <td class="n" style="text-align:left">${io}</td>
+      <td class="files-only"><select data-link aria-label="Archivo vinculado">${opts}</select></td>
+      <td style="white-space:nowrap"><button class="btn sm bA" data-load="A" title="Cargar en A">A</button> <button class="btn sm bB" data-load="B" title="Cargar en B">B</button>${mode==='play'?` <button class="btn sm" data-mv="-1" title="Subir">▲</button><button class="btn sm" data-mv="1" title="Bajar">▼</button>`:''} <button class="btn sm" data-del title="Quitar de la lista">✕</button></td></tr>`;
+  }
+  tb.innerHTML=html;
+  renderCratePlaying();
+}
+function renderListOptions(){ const sel=$('#crList'), cur=sel.value, cnt={}; for(const it of crate) for(const l of (it.lists||[])) cnt[l]=(cnt[l]||0)+1;
+  const keys=Object.keys(cnt).sort((a,b)=>a.localeCompare(b,'es')); sel.hidden=!keys.length;
+  const html='<option value="">Todas mis listas</option>'+keys.map(k=>`<option value="${esc(k)}">${esc(k)} (${cnt[k]})</option>`).join('');
+  if(sel.dataset.h!==html){ sel.innerHTML=html; sel.dataset.h=html; sel.value=keys.includes(cur)?cur:'' } }
+$('#crList').addEventListener('change',()=>{store.set('crList',$('#crList').value);renderCrate()});
+$('#crSort').value=store.get('crSort','play');
+$('#crSort').addEventListener('change',()=>{store.set('crSort',$('#crSort').value);renderCrate()});
+$('#crFind').addEventListener('input',renderCrateSoon);
+$('#crGenres').addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(!b)return;crGenreFilter=b.dataset.g;store.set('crGenre',crGenreFilter);renderCrate()});
+$('#crApply').onclick=()=>{ const {rows}=crateView(); const shown=rows.map(r=>r.it), rest=crate.filter(it=>!shown.includes(it));
+  crate=shown.concat(rest); saveCrate(); $('#crSort').value='play'; store.set('crSort','play'); $('#crFind').value=''; crGenreFilter=''; store.set('crGenre',''); renderCrate();
+  toast(`Orden de reproducción actualizado: primero ${shown.length} canciones en el orden que veías${rest.length?`, luego las otras ${rest.length}`:''}.`) };
+$('#crateBody').addEventListener('change',e=>{
+  const tr=e.target.closest('tr[data-i]'); if(!tr)return; const it=crate[+tr.dataset.i];
+  if(e.target.matches('[data-artist]')){ it.artist=e.target.value.trim(); if(!it.genreManual) it.genre=guessGenre(it)||it.genre; saveCrate(); renderCrateSoon(); return }
+  if(e.target.matches('[data-genre]')){ it.genre=e.target.value; it.genreManual=true; if(it.artist){ artistGenre[norm(it.artist)]=it.genre; store.set('artistGenre',artistGenre);
+      let n=0; for(const x of crate){ if(x!==it&&!x.genreManual&&norm(x.artist||'')===norm(it.artist)&&x.genre!==it.genre){x.genre=it.genre;n++} } if(n) toast(`También se asignó ${it.genre} a ${n} canciones más de ${it.artist}.`) }
+    saveCrate(); renderCrateSoon(); return }
+});
+function renderCratePlaying(){ $$('#crateBody tr[data-i]').forEach(tr=>{const it=crate[+tr.dataset.i]; if(!it)return;
+  const fa=MODE==='files'?(!!it.fileKey&&decks[0].key===it.fileKey):(typeof YD!=='undefined'&&YD.A&&YD.A.item===it&&ydPlaying(YD.A));
+  const fb=MODE==='files'?(!!it.fileKey&&decks[1].key===it.fileKey):(typeof YD!=='undefined'&&YD.B&&YD.B.item===it&&ydPlaying(YD.B));
+  tr.classList.toggle('nowA',fa); tr.classList.toggle('nowB',fb)}) }
+$('#crateBody').addEventListener('change',e=>{ const s=e.target.closest('[data-link]'); if(!s)return; const it=crate[+s.closest('tr').dataset.i]; it.fileKey=s.value||null; it.fileName=s.value&&lib.has(s.value)?lib.get(s.value).name:(s.value?it.fileName:null); saveCrate(); renderCrate() });
+$('#crateBody').addEventListener('click',e=>{
+  const tr=e.target.closest('tr[data-i]'); if(!tr)return; const i=+tr.dataset.i, it=crate[i];
+  if(e.target.closest('[data-del]')){ crate.splice(i,1); saveCrate(); renderCrate(); return }
+  const mv=e.target.closest('[data-mv]'); if(mv){ const j=i+(+mv.dataset.mv); if(j<0||j>=crate.length)return; [crate[i],crate[j]]=[crate[j],crate[i]]; saveCrate(); renderCrate(); return }
+  if(e.target.closest('[data-prev]')){ e.preventDefault(); ytLoad(it.vid); return }
+  const b=e.target.closest('[data-load]'); if(!b)return;
+  if(MODE==='yt'){ const d=YD[b.dataset.load]; if(!d||!d.ready){toast('El reproductor aún está cargando.');return} if(ydPlaying(d)){toast(`El plato ${d.id} está sonando. Usa “Siguiente canción” o carga en el otro plato.`);return} ydPrepare(d,it).then(()=>toast(`«${it.title}» lista en el plato ${d.id}.`)); return }
+  if(!it.fileKey){ toast('Esta canción no tiene archivo propio vinculado. Elígelo en la columna “Archivo propio”.'); return }
+  const f=lib.get(it.fileKey); if(!f){ toast(`Elige tu carpeta de música en “Mis archivos” para cargar «${it.fileName}».`); return }
+  loadFile(decks[b.dataset.load==='A'?0:1],f);
+});
+let clearArm=0;
+$('#crateClear').onclick=()=>{ const b=$('#crateClear');
+  if(!clearArm){ b.textContent='¿Seguro? Pulsa otra vez'; clearArm=setTimeout(()=>{clearArm=0;b.textContent='Vaciar lista'},4000); return }
+  clearTimeout(clearArm); clearArm=0; b.textContent='Vaciar lista';
+  crate=crate.filter(it=>(YD.A&&YD.A.item===it&&ydPlaying(YD.A))||(YD.B&&YD.B.item===it&&ydPlaying(YD.B)));
+  saveCrate(); renderCrate(); toast('Lista vaciada'+(crate.length?' (se dejó la canción que está sonando).':'.')) };
+$('#crateReset').onclick=()=>{ crate.forEach(it=>it.played=false); saveCrate(); renderCrate(); toast('Lista reiniciada.') };
+$$('.tabs button').forEach(b=>b.onclick=()=>{ $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b)); $$('[data-pane]').forEach(p=>p.hidden=p.dataset.pane!==b.dataset.tab) });
+
+/* ---- Tap con el tiempo del video: BPM + posición del 1 ---- */
+function mkTap(){ let taps=[], wall=0;
+  return function(vt){ const now=performance.now(); if(now-wall>2500) taps=[]; wall=now; taps.push(vt);
+    if(taps.length<4) return {n:taps.length};
+    const T=taps.slice(-16), n=T.length; let sx=0,sy=0,sxx=0,sxy=0; for(let i=0;i<n;i++){sx+=i;sy+=T[i];sxx+=i*i;sxy+=i*T[i]}
+    const b=(n*sxy-sx*sy)/(n*sxx-sx*sx), a=(sy-b*sx)/n; if(!(b>0.25&&b<1.3)) return {n:taps.length};
+    const first=taps.length-n; // índice del primer tap usado; el primer tap total fue un "1"
+    const beatAt=a-first*b; return {n:taps.length,bpm:Math.round(600/b)/10,beatAt:Math.round(beatAt*1000)/1000} } }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ============ YouTube ============ */
+let ytListMode=false, yt=null, ytReady=false, ytCur={vid:null,title:''}, pvTap=mkTap(), pvPend={bpm:null,beatAt:null,cueIn:null};
+function parseYT(s){
+  s=String(s||'').trim(); if(!s)return null;
+  if(/^[A-Za-z0-9_-]{11}$/.test(s)) return {vid:s};
+  if(/^(PL|OL|RD|UU|FL|LL)[A-Za-z0-9_-]{10,}$/.test(s)) return {list:s};
+  try{ const u=new URL(s.startsWith('http')?s:'https://'+s); const out={};
+    const v=u.searchParams.get('v'); if(v) out.vid=v;
+    const l=u.searchParams.get('list'); if(l) out.list=l;
+    const m=u.pathname.match(/\/(?:embed|shorts|live|v)\/([A-Za-z0-9_-]{11})/); if(m) out.vid=m[1];
+    if(/youtu\.be$/.test(u.hostname)){ const id=u.pathname.slice(1,12); if(id) out.vid=id }
+    return (out.vid||out.list)?out:null;
+  }catch(e){return null}
+}
+function ytMsg(t){ const m=$('#ytMsg'); m.textContent=t||''; m.hidden=!t }
+function ytLoad(vid,list){
+  if(!ytReady){ toast(location.protocol==='file:'?'Abre la página con “Iniciar Mezclador.bat” para usar YouTube.':'El reproductor de YouTube aún está cargando.'); return }
+  ytMsg('');
+  ytListMode=!!list&&!vid&&!/^RD/.test(list);
+  if(vid) yt.cueVideoById(vid);
+  else if(list) yt.cuePlaylist({list,listType:'playlist'});
+}
+function ytRefreshNow(){
+  if(!ytReady)return; const d=yt.getVideoData&&yt.getVideoData();
+  const pl=yt.getPlaylist&&yt.getPlaylist(); $('#ytAddAll').hidden=!(ytListMode&&pl&&pl.length>1); if(pl&&pl.length>1) $('#ytAddAll').textContent=`Añadir toda la lista (${pl.length})`;
+  if(!d||!d.video_id)return;
+  if(d.video_id!==ytCur.vid){ ytCur={vid:d.video_id,title:d.title||d.video_id,author:d.author||''}; pvTap=mkTap(); pvPend={bpm:null,beatAt:null,cueIn:null}; const it=crate.find(x=>x.vid===ytCur.vid); $('#ytTapTxt').textContent=it&&it.bpm?it.bpm.toFixed(1)+' BPM':'— BPM' }
+  else { if(d.title) ytCur.title=d.title; if(d.author) ytCur.author=d.author }
+  ytGenreAuto();
+  $('#ytNow').textContent=ytCur.title;
+  const it=crate.find(x=>x.vid===ytCur.vid); if(it&&d.title&&it.title!==d.title&&it.title===it.vid){it.title=d.title;saveCrate();renderCrate()}
+}
+const ytErrMsg=c=>c===101||c===150?'El dueño de este video no permite reproducirlo fuera de YouTube.':c===100?'Video no encontrado, privado o eliminado. Las listas privadas deben pasar a “No listada”.':c===2?'Enlace o ID no válido.':'YouTube devolvió el error '+c+'.';
+window.onYouTubeIframeAPIReady=function(){
+  yt=new YT.Player('ytPlayer',{width:'100%',height:'100%',playerVars:{playsinline:1,rel:0,origin:location.origin},
+    events:{ onReady:()=>{ytReady=true;yt.setVolume(+$('#ytVol').value)}, onStateChange:()=>ytRefreshNow(), onError:e=>toast(ytErrMsg(e.data)) }});
+  ydMake('A'); ydMake('B');
+};
+if(location.protocol==='file:'){ $('#fileBanner').hidden=false; ytMsg('YouTube necesita que la página se abra con “Iniciar Mezclador.bat”.') }
+else { const s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; s.onerror=()=>ytMsg('No se pudo conectar con YouTube. Revisa la conexión a internet.'); document.head.appendChild(s) }
+setInterval(ytRefreshNow,1500);
+$('#ytOpen').onclick=()=>{ const p=parseYT($('#ytUrl').value); if(!p){toast('No reconozco ese enlace. Pega la dirección completa del video o de la lista.');return} ytLoad(p.vid,p.list) };
+$('#ytUrl').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ytOpen').click()});
+$('#ytVol').addEventListener('input',e=>{if(ytReady)yt.setVolume(+e.target.value)});
+$('#ytGenre').innerHTML='<option value="">Género: automático</option>'+GENRES.map(g=>`<option>${g}</option>`).join('');
+let ytGenreFor=null;
+function ytGenreAuto(){ if(!ytCur.vid||ytGenreFor===ytCur.vid)return; ytGenreFor=ytCur.vid; const tmp={title:ytCur.title,artist:guessArtist(ytCur.title,ytCur.author)}; const g=guessGenre(tmp); $('#ytGenre').value=g||''; }
+function newItem(vid,title){ const it={vid,title:title||vid,bpm:null,beatAt:null,cueIn:null,cueOut:null,fileKey:null,fileName:null,played:false};
+  let best=null,bs=0; for(const [k,f] of lib){const s=sim(it.title,f.name);if(s>bs){bs=s;best=[k,f]}} if(best&&bs>=0.55){it.fileKey=best[0];it.fileName=best[1].name} return it }
+$('#ytAdd').onclick=()=>{
+  ytRefreshNow(); if(!ytCur.vid){toast('Abre primero una canción de YouTube.');return}
+  if(crate.some(x=>x.vid===ytCur.vid)){toast('Esa canción ya está en la lista.');return}
+  const it=newItem(ytCur.vid,ytCur.title); Object.assign(it,{bpm:pvPend.bpm,beatAt:pvPend.beatAt,cueIn:pvPend.cueIn});
+  fillMeta(it,ytCur.author); const g=$('#ytGenre').value; if(g){ it.genre=g; it.genreManual=true; if(it.artist){artistGenre[norm(it.artist)]=g;store.set('artistGenre',artistGenre)} } it.metaOk=true;
+  crate.push(it); saveCrate(); renderCrate(); toast(`Añadida (#${crate.length})${it.artist?' · '+it.artist:''}${it.genre?' · '+it.genre:''}.`);
+};
+$('#ytAddAll').onclick=async()=>{
+  const pl=yt.getPlaylist&&yt.getPlaylist(); if(!pl||!pl.length)return; let n=0; const added=[];
+  for(const vid of pl){ if(crate.some(x=>x.vid===vid))continue; const it=newItem(vid,vid); crate.push(it); added.push(it); n++ }
+  saveCrate(); renderCrate(); toast(`${n} canciones añadidas. Buscando sus títulos…`);
+  backfillMeta();
+};
+$('#ytTap').onclick=()=>{
+  if(!ytReady)return; const r=pvTap(yt.getCurrentTime());
+  if(!r.bpm){ $('#ytTapTxt').textContent=`tap ${r.n}/4`; return }
+  $('#ytTapTxt').textContent=r.bpm.toFixed(1)+' BPM'; pvPend.bpm=r.bpm; pvPend.beatAt=r.beatAt;
+  const it=crate.find(x=>x.vid===ytCur.vid); if(it){it.bpm=r.bpm;it.beatAt=r.beatAt;saveCrate();renderCrate()}
+};
+$('#ytMarkIn').onclick=()=>{
+  if(!ytReady||!ytCur.vid)return; const t=Math.max(0,Math.round(yt.getCurrentTime()*100)/100); pvPend.cueIn=t;
+  const it=crate.find(x=>x.vid===ytCur.vid); if(it){it.cueIn=t;saveCrate();renderCrate()}
+  toast('Entrada marcada en '+fmtT(t)+(it?'.':'. Se guardará al añadirla a la lista.'));
+};
+
+/* ============ Mezcla con dos platos de YouTube ============ */
+const YD={A:null,B:null};
+let yxf=+store.get('yxf',0), ytTrans=null, ytAuto=false;
+function ydMake(id){
+  const d={id,p:null,ready:false,item:null,prepared:false,preparing:false,prepRes:null,prepTimer:0,tap:mkTap(),lastVol:-1};
+  d.p=new YT.Player('ydPlayer'+id,{width:'100%',height:'100%',playerVars:{playsinline:1,rel:0,origin:location.origin},
+    events:{ onReady:()=>{d.ready=true;d.p.setVolume(0);ydApplyVol()}, onStateChange:e=>ydState(d,e.data),
+      onError:e=>{ if(d.preparing&&d.tries<2&&e.data!==101&&e.data!==150&&e.data!==100){ clearTimeout(d.prepTimer); setTimeout(()=>{ if(d.preparing){ d.tries++; d.p.cueVideoById({videoId:d.item.vid,startSeconds:entryPos(d.item)}) } },800); return }
+        if(d.preparing) ydFail(d,ytErrMsg(e.data)); else toast(`Plato ${id}: `+ytErrMsg(e.data)) } }});
+  YD[id]=d;
+}
+const ydOther=d=>d===YD.A?YD.B:YD.A;
+function ydPlaying(d){ try{ return !!(d&&d.ready&&!d.preparing&&!d.warming&&d.p.getPlayerState()===1) }catch(e){return false} }
+/* reloj preciso: tiempo exacto del video a partir de los mensajes del reproductor */
+window.addEventListener('message',e=>{ if(!/youtube/.test(e.origin))return; let m; try{m=typeof e.data==='string'?JSON.parse(e.data):e.data}catch(_){return}
+  if(!m||m.event!=='infoDelivery'||!m.info||typeof m.info.currentTime!=='number')return;
+  for(const id of ['A','B']){ const d=YD[id]; try{ if(d&&d.p&&d.p.getIframe().contentWindow===e.source){ d.ct=m.info.currentTime; d.ctAt=performance.now() } }catch(_){} } });
+function ydPos(d){ try{ if(d.p.getPlayerState()===1&&d.ctAt&&performance.now()-d.ctAt<1500) return d.ct+(performance.now()-d.ctAt)/1000*(d.p.getPlaybackRate()||1); return d.p.getCurrentTime() }catch(e){return 0} }
+function entryPos(it){ let e=it.cueIn||0; if(it.bpm&&it.beatAt!=null){ const bar=240/it.bpm; e=it.beatAt+Math.ceil((e-it.beatAt-0.02)/bar)*bar; while(e<0) e+=bar } return Math.max(0,e) }
+function ydWarm(d){
+  if(!d.prepared||d.warm||d.warming||document.visibilityState!=='visible'||ydPlaying(d))return;
+  d.warming=true; d.p.mute(); d.p.playVideo();
+  d.warmT=setTimeout(()=>{ if(d.warming){ d.warming=false; try{d.p.pauseVideo();d.p.seekTo(entryPos(d.item),true)}catch(e){} d.p.unMute() } },5000);
+}
+let ytLat=+store.get('ytLat',0.3), ytSeekLag=+store.get('ytSeekLag',0.17), ytHintShown=false;
+const smooth=u=>{u=clamp(u,0,1);return u*u*(3-2*u)};
+function ytGain(id,x){
+  const t=id==='A'?1-x:x;
+  if($('#ytCurve').value==='dip') return Math.sin(t*Math.PI/2);
+  const u=Math.min(1,2*t); return u*u*(3-2*u);
+}
+function ydApplyVol(){
+  const mv=+$('#ymv').value;
+  for(const id of ['A','B']){ const d=YD[id]; if(!d||!d.ready||d.preparing||d.warming||(ytTrans&&ytTrans.phase==='fade'))continue; const v=Math.round(100*mv*ytGain(id,yxf)); if(v!==d.lastVol){ d.lastVol=v; d.p.setVolume(v) } }
+}
+function setYxf(v){ yxf=clamp(v,0,1); $('#yxf').value=yxf; store.set('yxf',yxf); ydApplyVol() }
+$('#yxf').value=yxf;
+$('#yxf').addEventListener('input',e=>{ if(ytTrans&&ytTrans.phase==='fade'){ytTrans.cancel=true;ytTrans.phase='cancel';toast('Mezcla automática cancelada: crossfader en manual.')} setYxf(+e.target.value) });
+$('#ymv').addEventListener('input',e=>{ $('#ymvTxt').textContent=Math.round(+e.target.value*100)+'%'; ydApplyVol() });
+$('#ytCurve').addEventListener('change',ydApplyVol);
+function ydPrepare(d,item){
+  return new Promise(res=>{
+    if(d.prepRes){ const r=d.prepRes; d.prepRes=null; r(false) }
+    clearTimeout(d.prepTimer);
+    d.item=item; d.prepared=false; d.preparing=true; d.prepRes=res; d.lastVol=-1; d.tries=0;
+    const attempt=()=>{
+      d.tries++; d.warm=false; d.warming=false; d.p.cueVideoById({videoId:item.vid,startSeconds:entryPos(item)});
+      d.prepTimer=setTimeout(()=>{ if(!d.preparing)return;
+        if(d.tries<2){ try{d.p.stopVideo()}catch(e){} setTimeout(attempt,800); return }
+        ydFail(d,'YouTube no respondió al cargar esta canción.') },9000);
+    };
+    attempt(); ydUI();
+  });
+}
+function ydFail(d,why){
+  clearTimeout(d.prepTimer); d.preparing=false; d.prepared=false;
+  try{d.p.stopVideo()}catch(e){} d.p.unMute();
+  if(d.item){ d.item.played=true; d.item.err=true; saveCrate(); toast(`Plato ${d.id}: «${d.item.title}» no se pudo cargar (${why}) Se salta.`) }
+  d.item=null; const r=d.prepRes; d.prepRes=null; r&&r(false); renderCrate(); ydUI();
+}
+function ydState(d,st){
+  if((st===5||st===1)&&d.preparing){
+    d.preparing=false; clearTimeout(d.prepTimer); if(st===1){ d.p.pauseVideo(); d.p.seekTo(entryPos(d.item),true) }
+    const vd=d.p.getVideoData(); if(vd&&vd.title&&d.item.title!==vd.title){ d.item.title=vd.title; saveCrate() } if(vd&&vd.author&&!d.item.artist){ fillMeta(d.item,vd.author); saveCrate() }
+    setTimeout(()=>{ d.lastVol=-1; ydApplyVol(); d.prepared=true; const r=d.prepRes; d.prepRes=null; r&&r(true); renderCrate(); ydWarm(d) },250);
+    return;
+  }
+  if(st===1&&d.warming){ d.warming=false; clearTimeout(d.warmT); d.p.pauseVideo(); d.p.seekTo(entryPos(d.item),true);
+    setTimeout(()=>{ d.p.unMute(); d.lastVol=-1; ydApplyVol(); d.warm=true },300); return }
+  if(st===0&&!ytTrans&&ytAuto&&!ydPlaying(ydOther(d))) ytNext();
+  renderCratePlaying();
+}
+function ytMaster(){ const a=YD.A,b=YD.B; if(!a||!b)return null; const pa=ydPlaying(a), pb=ydPlaying(b); if(pa&&pb) return yxf<0.5?a:b; return pa?a:pb?b:null }
+function nextIdx(item){
+  const i=item?crate.indexOf(item):-1;
+  for(let k=i+1;k<crate.length;k++) if(!crate[k].played) return k;
+  for(let k=0;k<crate.length;k++) if(!crate[k].played&&crate[k]!==item) return k;
+  return -1;
+}
+function ytUpNextItem(){
+  if(!YD.A||!YD.B) { const k=nextIdx(null); return k>=0?crate[k]:null }
+  const m=ytMaster(), to=m?ydOther(m):YD.A;
+  if(to&&to.item&&!to.item.played&&(to.prepared||to.preparing)&&!ydPlaying(to)) return to.item;
+  const k=nextIdx(m?m.item:null); return k>=0?crate[k]:null;
+}
+function preloadNext(from){
+  const to=ydOther(from); if(!to||ydPlaying(to)||ytTrans)return;
+  const k=nextIdx(from.item); if(k<0)return; const it=crate[k];
+  if(to.item===it&&(to.prepared||to.preparing))return;
+  ydPrepare(to,it);
+}
+async function ytNext(){
+  if(!YD.A||!YD.B||!YD.A.ready||!YD.B.ready){ toast(location.protocol==='file:'?'Abre la página con “Iniciar Mezclador.bat”.':'Los platos de YouTube aún están cargando.'); return }
+  if(ytTrans) return;
+  const from=ytMaster(), to=from?ydOther(from):(yxf<0.5?YD.A:YD.B);
+  let item=null;
+  if(to.item&&!to.item.played&&(to.prepared||to.preparing)&&(!from||to.item!==from.item)) item=to.item;
+  else { const k=nextIdx(from?from.item:null); if(k<0){ toast('No quedan canciones sin tocar en la lista. Usa “Reiniciar lista” para repetirla.'); if(ytAuto) setYtAuto(false); return } item=crate[k] }
+  const T=ytTrans={from,to,phase:'prep',cancel:false}; ydUI();
+  for(let tries=0;tries<4;tries++){
+    if(to.item!==item||!(to.prepared||to.preparing)) await ydPrepare(to,item);
+    else if(to.preparing) await new Promise(r=>{ const c=setInterval(()=>{ if(!to.preparing){clearInterval(c);r()} },50) });
+    if(to.prepared) break;
+    const k=nextIdx(from?from.item:null); if(k<0) break; item=crate[k];
+  }
+  if(!to.prepared){ ytTrans=null; ydUI(); return }
+  // calentar el búfer para que arranque al instante
+  if(!to.warm&&document.visibilityState==='visible'){ ydWarm(to); const w0=performance.now(); while(to.warming&&performance.now()-w0<4000) await sleep(30); await sleep(to.warm?0:350) }
+  T.phase='wait'; ydUI();
+  const ent=entryPos(item), adj=(+$('#ytAdj').value)/1000, nowS=()=>performance.now()/1000;
+  let Twall=nowS()+ytLat+0.08, aligned=false;
+  if(from&&$('#ytQuant').value==='bar'){
+    if(from.item&&from.item.bpm&&from.item.beatAt!=null){
+      const t=ydPos(from), r=from.p.getPlaybackRate()||1, bar=240/from.item.bpm;
+      const k=Math.ceil((t+(ytLat+0.15)*r-from.item.beatAt)/bar), target=from.item.beatAt+k*bar;
+      Twall=nowS()+(target-t)/r; aligned=true;
+    } else if(!ytHintShown){ ytHintShown=true; toast('La canción que suena no tiene BPM marcado: la siguiente entra al instante. Pulsa “Tap BPM” en su plato (empezando en el 1) para que entre en el compás.') }
+  }
+  Twall+=adj;
+  await sleep(Math.max(0,(Twall-ytLat-nowS())*1000));
+  if(!from) setYxf(to.id==='A'?0:1);
+  else { to.lastVol=0; to.p.setVolume(0) }
+  if(!from){ to.lastVol=-1; ydApplyVol() }
+  T.phase='fade';
+  to.p.playVideo(); item.played=true; saveCrate();
+  const t0=performance.now(); while(!ydPlaying(to)&&performance.now()-t0<10000) await sleep(15);
+  if(!ydPlaying(to)){ item.played=false; saveCrate(); try{to.p.pauseVideo()}catch(e){} ytTrans=null; ydUI(); renderCrate(); ydApplyVol();
+    toast(`Plato ${to.id}: YouTube no arrancó la canción. Pulsa ▶ en el reproductor del plato una vez y vuelve a intentar.`); return }
+  // medir el retraso real y corregir en silencio (la entrante aún está en volumen 0)
+  if(from){
+    const warmed=!!to.warm; let seeked=false;
+    for(let c=0;c<5;c++){
+      await sleep(c===0?200:320);
+      const expected=ent+(nowS()-Twall), err=ydPos(to)-expected; (window.__ytDbg=window.__ytDbg||[]).push({c,err:Math.round(err*1000),aligned,lat:Math.round(ytLat*1000),seek:Math.round(ytSeekLag*1000)});
+      if(c===0&&warmed&&Math.abs(err)<0.6){ ytLat=clamp(ytLat-err*0.6,0.05,1); store.set('ytLat',ytLat) }
+      if(seeked&&Math.abs(err)<0.6){ ytSeekLag=clamp(ytSeekLag-err*0.8,0,0.8); store.set('ytSeekLag',ytSeekLag) }
+      if(!aligned||Math.abs(err)<0.025) break;
+      to.p.seekTo(Math.max(0,ent+(nowS()+ytSeekLag-Twall)),true); seeked=true;
+    }
+  }
+  renderCrate();
+  if(!from){ ytTrans=null; ydUI(); preloadNext(to); return }
+  ydUI();
+  const F=+$('#ytFade').value*1000, kIn=+$('#ytInSpd').value, x0=yxf, x1=to.id==='A'?0:1, st=performance.now(), mv=+$('#ymv').value;
+  await new Promise(res=>{ const iv=setInterval(()=>{
+    if(T.cancel){clearInterval(iv);res();return}
+    const pr=clamp((performance.now()-st)/F,0,1);
+    const gIn=smooth(pr/kIn), gOut=smooth((1-pr)/(kIn>=1?1:1-kIn*0.8));
+    const vi=Math.round(100*mv*gIn), vo=Math.round(100*mv*gOut);
+    if(vi!==to.lastVol){to.lastVol=vi;to.p.setVolume(vi)} if(vo!==from.lastVol){from.lastVol=vo;from.p.setVolume(vo)}
+    yxf=x0+(x1-x0)*pr; $('#yxf').value=yxf; $('#ytProg').style.width=(pr*100)+'%';
+    if(pr>=1){clearInterval(iv);res()} },30) });
+  if(!T.cancel){ from.p.pauseVideo() }
+  $('#ytProg').style.width='0';
+  ytTrans=null; if(!T.cancel){ setYxf(x1) } else ydApplyVol();
+  ydUI(); renderCrate();
+  if(!T.cancel) setTimeout(()=>preloadNext(to),600);
+}
+['ytFade','ytInSpd','ytLead','ytQuant','ytCurve'].forEach(id=>{ const el=$('#'+id), v=store.get('opt.'+id,null); if(v!==null&&[...el.options].some(o=>o.value===v)) el.value=v; el.addEventListener('change',()=>store.set('opt.'+id,el.value)) });
+$('#ytAdj').value=store.get('opt.ytAdj',0); $('#ytAdjTxt').textContent=(+$('#ytAdj').value>0?'+':'')+$('#ytAdj').value+' ms';
+$('#ytAdj').addEventListener('input',e=>{ store.set('opt.ytAdj',+e.target.value); $('#ytAdjTxt').textContent=(+e.target.value>0?'+':'')+e.target.value+' ms' });
+$('#ytAdj').addEventListener('dblclick',e=>{ e.target.value=0; e.target.dispatchEvent(new Event('input')) });
+function setYtAuto(on){ ytAuto=on; const b=$('#ytAuto'); b.classList.toggle('on',on); b.textContent='Auto DJ: '+(on?'encendido':'apagado'); if(on&&!ytMaster()&&!ytTrans) ytNext() }
+$('#ytAuto').onclick=()=>setYtAuto(!ytAuto);
+$('#ytNextBtn').onclick=()=>ytNext();
+$$('.ydeck').forEach(el=>{ const id=el.dataset.d;
+  el.addEventListener('click',e=>{ const b=e.target.closest('[data-yd]'); if(!b)return; const d=YD[id]; if(!d||!d.ready)return; const a=b.dataset.yd;
+    if(a==='play'){ if(ydPlaying(d)){ d.p.pauseVideo(); return } if(!d.item){ toast('Carga una canción en este plato desde la lista (botón '+id+').'); return } if(!ytPlayingAny()) setYxf(id==='A'?0:1); d.lastVol=-1; ydApplyVol(); d.p.playVideo(); d.item.played=true; saveCrate(); setTimeout(()=>{renderCrate();preloadNext(d)},800); return }
+    if(!d.item){ toast('El plato '+id+' está vacío.'); return }
+    const t=Math.round(d.p.getCurrentTime()*100)/100;
+    if(a==='tap'){ const r=d.tap(t); if(!r.bpm){ $('#ydB'+id).textContent=`tap ${r.n}/4`; return } d.item.bpm=r.bpm; d.item.beatAt=r.beatAt; saveCrate(); renderCrate(); return }
+    if(a==='out'){ d.item.cueOut=t; saveCrate(); renderCrate(); toast(`Salida marcada en ${fmtT(t)}: Auto DJ empezará la mezcla ahí.`); return }
+    if(a==='in'){ d.item.cueIn=t; saveCrate(); renderCrate(); toast(`Entrada marcada en ${fmtT(t)}.`); return }
+  }) });
+const ytPlayingAny=()=>ydPlaying(YD.A)||ydPlaying(YD.B);
+function ydUI(){
+  const btn=$('#ytNextBtn');
+  if(ytTrans){ btn.disabled=true; btn.textContent=ytTrans.phase==='prep'?'Preparando…':ytTrans.phase==='wait'?'Esperando el compás…':'Mezclando…' }
+  else { btn.disabled=false; btn.textContent=ytPlayingAny()?'Siguiente canción ▶▶':'Empezar ▶' }
+  const up=ytUpNextItem(); $('#ytUpNext').textContent=up?up.title:'— fin de la lista —';
+}
+setInterval(()=>{
+  if(!YD.A||!YD.B)return;
+  for(const id of ['A','B']){ const d=YD[id]; if(!d.ready)continue;
+    const el=$('#yd'+id), live=ydPlaying(d); el.classList.toggle('live',live);
+    $('#ydName'+id).textContent=d.item?d.item.title:'Vacío';
+    $('#ydSub'+id).textContent=d.preparing?'Preparando…':d.item?(live?'Sonando':d.prepared?'Lista para entrar':'—'):'Carga una canción desde la lista';
+    let t=0,dur=0; try{ t=d.p.getCurrentTime()||0; dur=d.p.getDuration()||0 }catch(e){}
+    const show=d.item&&!d.preparing;
+    $('#ydT'+id).textContent=show?fmtT(t):'—'; $('#ydR'+id).textContent=show&&dur?'-'+fmtT(dur-t):'—';
+    if(!$('#ydB'+id).textContent.startsWith('tap')||!live) $('#ydB'+id).textContent=d.item&&d.item.bpm?d.item.bpm.toFixed(1):'—';
+    $('#ydV'+id).textContent=Math.max(0,d.lastVol);
+    $('#ydP'+id).style.width=(show&&dur?t/dur*100:0)+'%';
+    const o=$('#ydO'+id); if(show&&dur){ const out=d.item.cueOut!=null?d.item.cueOut:dur-(+$('#ytLead').value); o.hidden=false; o.style.left=clamp(out/dur*100,0,100)+'%' } else o.hidden=true;
+  }
+  if(!ytTrans) ydUI();
+  // Auto DJ
+  if(ytAuto&&!ytTrans){ const m=ytMaster(); if(m&&m.item){ let t=0,dur=0; try{t=m.p.getCurrentTime();dur=m.p.getDuration()}catch(e){}
+    if(dur>0){ const out=m.item.cueOut!=null?m.item.cueOut:dur-(+$('#ytLead').value); if(t>=out) ytNext() } } }
+},250);
+
+/* ============ Siguiente / Auto DJ con archivos propios ============ */
+let fAuto=false, fBusy=false;
+function fileNextCandidate(fromKey){
+  const withF=crate.filter(it=>it.fileKey&&lib.has(it.fileKey));
+  if(withF.length){ const i=withF.findIndex(it=>it.fileKey===fromKey); const it=withF[i+1]; return it?{file:lib.get(it.fileKey),name:it.title}:null }
+  const files=[...lib.values()].sort((a,b)=>a.name.localeCompare(b.name,'es')); const i=files.findIndex(f=>fileKey(f)===fromKey); const f=files[i+1]; return f?{file:f,name:f.name}:null;
+}
+async function fileNext(){
+  audio(); if(am||fBusy)return;
+  const from=masterDeck(), to=from?other(from):(xfader<0.5?decks[0]:decks[1]);
+  if(to.playing){ toast('Los dos decks están sonando.'); return }
+  fBusy=true;
+  try{
+    if(!(to.ready&&to.fresh&&(!from||to.key!==from.key))){
+      const c=fileNextCandidate(from?from.key:null);
+      if(!c){ toast(lib.size?'No quedan canciones en la lista.':'Elige tu carpeta de música en “Mis archivos”.'); if(fAuto) setFAuto(false); return }
+      await loadFile(to,c.file); if(!to.ready) return;
+    }
+    if(!from){ setXF(to.id==='A'?0:1,true); if(to.vol<0.5){to.vol=0.85;$('#vol'+to.id).value=to.vol;to.applyVol()} startDeck(to,'off'); return }
+    autoMix();
+  } finally { fBusy=false }
+}
+function setFAuto(on){ fAuto=on; const b=$('#fAuto'); b.classList.toggle('on',on); b.textContent='Auto DJ: '+(on?'encendido':'apagado'); if(on&&!masterDeck()) fileNext() }
+$('#fAuto').onclick=()=>setFAuto(!fAuto);
+$('#fNextBtn').onclick=()=>fileNext();
+function fileAutoStep(){
+  const m=masterDeck(), up=m?fileNextCandidate(m.key):fileNextCandidate(null);
+  $('#fUpNext').textContent=(()=>{ const o=m?other(m):null; if(o&&o.ready&&o.fresh) return o.name.replace(/\.[^.]+$/,''); return up?up.name.replace(/\.[^.]+$/,''):'—' })();
+  if(!fAuto||am||fBusy||!m)return;
+  const o=other(m), rem=(m.buffer.duration-m.pos())/m.eff(), trans=(+$('#mxBars').value)*4*m.periodAt(m.pos())/m.eff();
+  if(rem<trans+45&&!(o.ready&&o.fresh)&&!o.playing&&up&&!o.loading){ o.loading=true; loadFile(o,up.file).finally(()=>o.loading=false) }
+  if(rem<=trans+2&&o.ready&&o.fresh&&!o.loading) fileNext();
+}
+$('#ytKey').value=store.get('ytKey','');
+$('#ytKeySave').onclick=()=>{store.set('ytKey',$('#ytKey').value.trim());toast($('#ytKey').value.trim()?'Clave guardada en este navegador.':'Clave eliminada.')};
+async function ytSearch(){
+  const q=$('#ytQ').value.trim(); if(!q)return; const key=store.get('ytKey','');
+  if(!key){ window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(q),'_blank','noopener'); return }
+  const box=$('#ytResults'); box.innerHTML='<div class="note">Buscando…</div>';
+  try{
+    const r=await fetch('https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=12&q='+encodeURIComponent(q)+'&key='+encodeURIComponent(key));
+    const j=await r.json(); if(j.error) throw new Error(j.error.message);
+    box.innerHTML=(j.items||[]).map(it=>`<div class="res" data-v="${esc(it.id.videoId)}" data-t="${esc(decodeHtml(it.snippet.title))}"><img alt="" loading="lazy" src="${esc(it.snippet.thumbnails.default.url)}"><div><div class="t">${esc(decodeHtml(it.snippet.title))}</div><div class="c">${esc(decodeHtml(it.snippet.channelTitle))}</div></div><div class="row"><button class="btn sm" data-a="prev">Escuchar</button><button class="btn sm" data-a="add">Añadir</button></div></div>`).join('')||'<div class="note">Sin resultados.</div>';
+  }catch(e){ box.innerHTML=`<div class="note">La búsqueda falló: ${esc(e.message)}</div>` }
+}
+function decodeHtml(s){const t=document.createElement('textarea');t.innerHTML=s;return t.value}
+$('#ytSearch').onclick=ytSearch;
+$('#ytQ').addEventListener('keydown',e=>{if(e.key==='Enter')ytSearch()});
+$('#ytResults').addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]'); if(!b)return; const r=b.closest('.res'), vid=r.dataset.v, title=r.dataset.t;
+  if(b.dataset.a==='prev') ytLoad(vid);
+  else { if(crate.some(x=>x.vid===vid)){toast('Esa canción ya está en la lista.');return} crate.push({vid,title,bpm:null,fileKey:null,fileName:null}); saveCrate(); renderCrate(); toast('Añadida a la lista.') }
+});
+
+/* ============ nube: Gist privado de GitHub ============ */
+const CLOUD_FILE='mezclador_lista.json';
+let cloud={token:store.get('cloudToken',''), gist:store.get('cloudGist',''), base:store.get('cloudBase',{}), busy:false, last:store.get('cloudLast',''), err:''};
+const cleanIt=it=>{ const o={...it}; delete o.played; delete o.err; delete o.fileKey; return o };
+const itKey=it=>JSON.stringify(cleanIt(it));
+async function gh(path,opt={}){
+  const r=await fetch('https://api.github.com'+path,{...opt,headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+cloud.token,...(opt.body?{'Content-Type':'application/json'}:{})}});
+  if(!r.ok){ const t=await r.text(); throw new Error(r.status===401?'La clave no es válida o venció.':r.status===404?'No se encontró el archivo en la nube.':'GitHub respondió '+r.status+': '+t.slice(0,120)) }
+  return r.status===204?null:r.json();
+}
+async function cloudFindGist(){
+  if(cloud.gist) return cloud.gist;
+  for(let page=1;page<=5;page++){ const list=await gh('/gists?per_page=100&page='+page); if(!list.length)break; const g=list.find(x=>x.files&&x.files[CLOUD_FILE]); if(g){ cloud.gist=g.id; store.set('cloudGist',g.id); return g.id } }
+  const g=await gh('/gists',{method:'POST',body:JSON.stringify({description:'Mezclador Híbrido — lista de mezcla',public:false,files:{[CLOUD_FILE]:{content:JSON.stringify(cloudPayload())}}})});
+  cloud.gist=g.id; store.set('cloudGist',g.id); return g.id;
+}
+function cloudPayload(){ return {v:1,updated:new Date().toISOString(),artistGenre,items:crate.map(cleanIt)} }
+function cloudMerge(remote){
+  const rItems=(remote&&remote.items)||[], rMap=new Map(rItems.map(x=>[x.vid,x])), lMap=new Map(crate.map(x=>[x.vid,x]));
+  const out=[];
+  for(const l of crate){
+    const r=rMap.get(l.vid), changedLocal=cloud.base[l.vid]!==itKey(l);
+    if(r){ if(!changedLocal){ const keep={played:l.played,fileKey:l.fileKey}; for(const k of Object.keys(l)) if(!(k in r)&&k!=='played'&&k!=='fileKey') delete l[k]; Object.assign(l,r,keep) } out.push(l) }
+    else if(cloud.base[l.vid]&&!changedLocal){ /* borrada en otra PC */ }
+    else out.push(l);
+  }
+  for(const r of rItems){ if(!lMap.has(r.vid)&&!cloud.base[r.vid]) out.push(Object.assign(r,{played:false})) }
+  crate=out;
+  if(remote&&remote.artistGenre){ artistGenre=Object.assign({},remote.artistGenre,artistGenre); store.set('artistGenre',artistGenre) }
+}
+async function cloudSync(quiet){
+  if(!cloud.token||cloud.busy) return; cloud.busy=true; cloud.err=''; cloudUI();
+  try{
+    const id=await cloudFindGist();
+    const g=await gh('/gists/'+id);
+    const f=g.files&&g.files[CLOUD_FILE]; let remote=null;
+    if(f){ const txt=f.truncated?await (await fetch(f.raw_url)).text():f.content; try{ remote=JSON.parse(txt) }catch(e){} }
+    const before=JSON.stringify(crate.map(cleanIt));
+    cloudMerge(remote);
+    store.set('crate',crate);
+    const payload=cloudPayload(), txt=JSON.stringify(payload);
+    const remoteSame=remote&&JSON.stringify((remote.items||[]))===JSON.stringify(payload.items)&&JSON.stringify(remote.artistGenre||{})===JSON.stringify(artistGenre);
+    if(!remoteSame) await gh('/gists/'+id,{method:'PATCH',body:JSON.stringify({files:{[CLOUD_FILE]:{content:txt}}})});
+    cloud.base={}; for(const it of crate) cloud.base[it.vid]=itKey(it); store.set('cloudBase',cloud.base);
+    cloud.last=new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit'}); store.set('cloudLast',cloud.last);
+    if(before!==JSON.stringify(crate.map(cleanIt))) renderCrate();
+    if(!quiet) toast(`Lista sincronizada con la nube: ${crate.length} canciones.`);
+  }catch(e){ cloud.err=e.message||String(e); if(!quiet) toast('Nube: '+cloud.err) }
+  finally{ cloud.busy=false; cloudUI() }
+}
+let cloudT=0; function cloudSoon(){ if(!cloud.token)return; clearTimeout(cloudT); cloudT=setTimeout(()=>cloudSync(true),4000) }
+function cloudUI(){
+  const b=$('#cloudBtn'); if(!b)return;
+  b.textContent=!cloud.token?'Nube: sin configurar':cloud.busy?'Nube: sincronizando…':cloud.err?'Nube: error':'Nube: al día'+(cloud.last?' · '+cloud.last:'');
+  b.style.borderColor=!cloud.token?'':cloud.err?'var(--bad)':'var(--ok)';
+  $('#cloudInfo').textContent=!cloud.token?'Esta PC no está conectada a la nube.':cloud.err?('Error: '+cloud.err):`Conectada. Archivo en la nube: ${cloud.gist||'—'} · última sincronización ${cloud.last||'—'} · ${crate.length} canciones.`;
+}
+$('#cloudBtn').onclick=()=>{ $('#cloudPanel').hidden=!$('#cloudPanel').hidden; cloudUI() };
+$('#cloudClose').onclick=()=>$('#cloudPanel').hidden=true;
+$('#cloudSave').onclick=async()=>{ const t=$('#cloudToken').value.trim(); if(!t){toast('Pega la clave de GitHub primero.');return} cloud.token=t; store.set('cloudToken',t); $('#cloudToken').value=''; await cloudSync(false) };
+$('#cloudNow').onclick=()=>cloudSync(false);
+$('#cloudForget').onclick=()=>{ cloud.token=''; store.set('cloudToken',''); cloudUI(); toast('Esta PC quedó desconectada de la nube. La lista en GitHub no se borró.') };
+window.addEventListener('focus',()=>{ if(cloud.token&&!ytTrans) cloudSync(true) });
+setInterval(()=>{ if(cloud.token&&!ytTrans&&!document.hidden) cloudSync(true) },120000);
+
+/* ============ inicio ============ */
+async function importMyLists(){
+  try{
+    const r=await fetch('mis_listas.json?v='+Date.now(),{cache:'no-store'}); if(!r.ok) return;
+    const data=await r.json(); if(!data||!Array.isArray(data.playlists)) return;
+    if(store.get('listsStamp','')===data.updated) return;
+    importListsData(data);
+  }catch(e){}
+}
+function importListsData(data){
+  try{
+    const byVid=new Map(crate.map(it=>[it.vid,it])); let added=0, tagged=0;
+    for(const pl of data.playlists){ for(const v of (pl.items||[])){
+      if(!v.vid) continue; let it=byVid.get(v.vid);
+      if(!it){ it=newItem(v.vid,v.title||v.vid); it.artist=v.artist?guessArtist(v.title,v.artist):''; it.metaOk=true; it.lists=[pl.name]; it.genre=guessGenre(it); crate.push(it); byVid.set(v.vid,it); added++ }
+      else { it.lists=it.lists||[]; if(!it.lists.includes(pl.name)){ it.lists.push(pl.name); tagged++ } if(!it.genre&&!it.genreManual) it.genre=guessGenre(it) }
+    } }
+    store.set('listsStamp',data.updated); saveCrate(); renderCrate();
+    toast(`Tus listas de YouTube: ${data.playlists.length} listas, ${added} canciones nuevas${tagged?`, ${tagged} ya estaban`:''}.`);
+    return {added,tagged,total:crate.length};
+  }catch(e){ return {error:String(e)} }
+}
+/* si otra pestaña del mezclador cambia la lista, tomar esos cambios */
+window.addEventListener('storage',e=>{ if(e.key==='mzh.crate'&&e.newValue){ try{ const nc=JSON.parse(e.newValue); const pl=new Set(crate.filter(x=>x.played).map(x=>x.vid)); crate=nc; crate.forEach(x=>x.played=pl.has(x.vid)); renderCrate() }catch(_){} } });
+/* recibir tus listas desde una pestaña de YouTube (misma PC) */
+window.addEventListener('message',e=>{
+  if(e.origin!=='https://www.youtube.com')return; const m=e.data; if(!m||m.type!=='mzh-import-lists'||!m.data)return;
+  const r=importListsData(m.data); try{ e.source.postMessage({type:'mzh-import-done',result:r},e.origin) }catch(_){}
+});
+setMode(MODE); renderLib(); cloudUI(); importMyLists().then(()=>cloudSync(true)).then(backfillMeta);
+{ const v=store.get('crList',''); setTimeout(()=>{ renderListOptions(); if([...$('#crList').options].some(o=>o.value===v)){ $('#crList').value=v; renderCrate() } },50) }
+let lastMb=null;
+setInterval(()=>{ const mb=masterBpm(); if(mb&&(!lastMb||Math.abs(mb-lastMb)>0.3)&&!document.activeElement.matches('select')){ lastMb=mb; renderCrate(); renderLib() } },3000);
+requestAnimationFrame(frame);
+window.__mzh={decks,startDeck,analyzeBuffer,computePeaks,audio,autoMix,masterDeck,get ctx(){return ctx}};
+</script>
+</body>
+</html>
